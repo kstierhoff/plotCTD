@@ -1,0 +1,590 @@
+---
+html_document: default
+output: html_document
+pdf_document: default
+reference_docx: _processCTD_template.docx
+title: "1606RL UCTD Casts"
+word_document: null
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=7, fig.align="center",
+                      echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+```{r SetUp}
+rm(list=ls())
+# load libraries
+suppressPackageStartupMessages(library(forecast)); library(stringr);library(surveyR);
+suppressPackageStartupMessages(library(plyr)); suppressPackageStartupMessages(library(gdata));library(knitr);
+suppressPackageStartupMessages(library(ggplot2));library(ggmap);library(cowplot);
+```
+
+```{r FilterVariables}
+# Set min and max values for temperature, salinity, etc.
+# Temperature limits
+min.T <- 0
+max.T <- 25
+# Salinity limits
+min.S <- 0
+max.S <- 35
+```
+
+
+```{r GetWaypoints}
+# read waypoints from survey instructions
+wpt <- read.csv("../../../PLANNING/NAV/1606RL_all_wpts.csv")
+# create labels for transects
+tx.labels <- ddply(wpt,.(transect),summarise,lon = min(lon) - 0.2,lat = min(lat))
+```
+
+```{r ProcessSCSNav}
+# Extract SCS data
+# list MOA continuous files
+nav.files <- list.files("../../../DATA/SCS",pattern = "MOA Continuous_\\d{3}.elg",full.names = TRUE)
+nav <- data.frame()
+for(i in nav.files){
+  nav.temp <- read.csv(i, skipNul = TRUE)
+  nav.temp$nav.date <- as.POSIXct(paste(nav.temp$Date,nav.temp$Time),format="%m/%d/%Y %H:%M:%S") # 06/28/2016 00:00:59
+  nav.temp <- nav.temp[ ,c("nav.date","MX512.Lat","MX512.Lon","MX512.SOG")]
+  nav <- rbind(nav,nav.temp)
+}
+# convert lat/lon from SCS to decimal degrees
+nav$MX512.Lat <- scs2dd(nav$MX512.Lat)
+nav$MX512.Lon <- scs2dd(nav$MX512.Lon)
+nav <- nav[order(nav$nav.date),]
+# str(nav)
+```
+
+```{r ProcessUCTDCasts}
+# list raw UCTD ASCII files
+uctd.hdr <- list.files("../../../DATA/UCTD",pattern = "1606RL_UCTD_T\\d{3}.asc",full.names = TRUE)
+uctd.files <- as.factor(gsub(".asc","",list.files("../../../DATA/UCTD",pattern = "1606RL_UCTD_T\\d{3}.asc")))
+# Extract the deployment time and other info from the header file
+# Create a data frame for header info
+all.uctd.hdr <- data.frame()
+for(i in 1:length(uctd.hdr)){
+  # create a factor for the cast name
+  cast <- uctd.files[i]
+  # scan header for text extraction
+  txt <- readLines(uctd.hdr[i])
+  # extract cast date as POSIXct
+  cast.date  <- as.POSIXct(str_extract(unlist(str_extract_all(txt, 
+                           pattern = '\\*Cast[\\s\\S]*end')),"\\d{2}\\s\\w{3}\\s\\d{4}\\s\\d{2}:\\d{2}:\\d{2}"),
+                           format = "%d %b %Y %H:%M:%S")
+  if(length(cast.date)==0){
+  cast.date  <- as.POSIXct(str_extract(unlist(str_extract_all(txt, 
+                          pattern = '\\*Cast[\\s\\S]*stop')),"\\d{2}\\s\\w{3}\\s\\d{4}\\s\\d{2}:\\d{2}:\\d{2}"),
+                          format = "%d %b %Y %H:%M:%S")
+  }
+  # extract probe serial number
+  sn <- as.numeric(str_extract(unlist(str_extract_all(txt, pattern = '\\*SerialNumber=\\d{8}'))[1],"\\d{8}"))
+  # assemble a temporary data frame and add to all.uctd.hdr
+  temp.df <- data.frame(cast,cast.date,sn)
+  all.uctd.hdr <- rbind(all.uctd.hdr,temp.df)
+}
+
+# Match UCTD headers to nav data
+nav.match.uctd <- data.frame()
+for(i in 1:dim(all.uctd.hdr)[1]){
+  min.diff <- which.min(abs(difftime(all.uctd.hdr$cast.date[i],nav$nav.date)))
+  nav.match.uctd <- rbind(nav.match.uctd,nav[min.diff, ])
+}
+# combine header and nav data
+all.uctd.hdr <- cbind(all.uctd.hdr,nav.match.uctd)
+all.uctd.hdr$lag <- difftime(all.uctd.hdr$cast.date,all.uctd.hdr$nav.date)
+
+# Process all UCTD casts
+# list processed UCTD ASCII files
+uctd.proc <- list.files("../../../DATA/UCTD",pattern = "1606RL_UCTD_T\\d{3}_processed.asc",full.names=TRUE)
+# create a data frame for storing results
+all.uctd <- data.frame()
+for(i in 1:length(uctd.proc)){
+  # read the ucast and rename columns
+  ucast <- read.table(uctd.proc[i],header = TRUE)
+  # names(ucast) <- c("scan","C","T","P","Z","dZt","S","sV","flag")
+  names(ucast) <- c("scan","C","T","P","Z","S","Sv","avgsVCM","Dens","Flag")
+  # calculate time (s) from scan (scan rate is 16 Hz)
+  ucast$scan <- ucast$scan - ucast$scan[1]
+  ucast$s <- ucast$scan/16
+  # calculate time interval (dt, s)
+  ucast$dt[2:dim(ucast)[1]] <- ucast$s[2:dim(ucast)[1]]-ucast$s[1:(dim(ucast)[1]-1)]
+  ucast$dt[1] <- ucast$dt[2]
+  # calculate change in depth (dZ, m)
+  ucast$dZ[2:dim(ucast)[1]] <- ucast$Z[2:dim(ucast)[1]]-ucast$Z[1:(dim(ucast)[1]-1)]
+  # calculate descent rate (dZt, m/s)
+  ucast$dZt <- ucast$dZ / ucast$dt
+  ucast$dZt <- as.numeric(ma(ucast$dZt, order = 5))
+  # make depth negative
+  ucast$Z <- -ucast$Z
+  # add ucast name to df
+  ucast$cast <- uctd.files[i]
+  # add to resultsConductivity Depth Plot
+  all.uctd <- rbind(all.uctd,ucast)
+}
+all.uctd <- all.uctd[order(all.uctd$cast,all.uctd$scan),]
+
+# summarize UCTD cast results
+uctd.summ <- ddply(all.uctd,.(cast),summarise,
+                   time = round(sum(dt),0),
+                   max.depth = round(min(Z),0))
+# add log info to summary"
+uctd.summ <- merge(uctd.summ,all.uctd.hdr[ ,c("cast","cast.date","MX512.Lat","MX512.Lon","MX512.SOG")],by = 'cast',all.x = TRUE)
+# extract cast number from filename
+uctd.summ$cast.num <- as.numeric(substr(levels(uctd.summ$cast),nchar(levels(uctd.summ$cast)[1])-2,nchar(levels(uctd.summ$cast)[1])))
+# write table to CSV
+write.csv(uctd.summ,file="../Data/uctd_cast_summary.csv",quote = FALSE,row.names=FALSE)
+# add SOG to all.uctd
+all.uctd <- merge(all.uctd,uctd.summ[ ,c("cast","MX512.SOG")],by='cast')
+# create a survey factor for plotting
+all.uctd$survey <- as.factor("1606RL")
+# summarize uctd casts for water classification
+uctd.class <- ddply(all.uctd,.(cast),summarise,
+                    min.T = min(T),
+                    min.S = min(S),
+                    max.T = max(T),
+                    max.S = max(S),
+                    class = "CC")
+# assign classes based on salinity
+uctd.class$class[uctd.class$min.S <= 31.4] <- "Plume"
+uctd.class$class[uctd.class$min.S >= 33.4] <- "Spicy"
+# add water mass to the summary table and cast data for plotting
+all.uctd <- merge(all.uctd,uctd.class[ ,c("cast","class")],by = 'cast',all.x=TRUE)
+uctd.summ <- merge(uctd.summ,uctd.class[ ,c("cast","class")],by = 'cast',all.x=TRUE)
+# reorder uctd.summ columns
+uctd.summ <- uctd.summ[ ,c("cast.num","cast","cast.date","MX512.Lat","MX512.Lon","MX512.SOG","time","max.depth","class")]
+```
+
+```{r ProcessCTDCasts}
+# list raw UCTD ASCII files
+ctd.hdr <- list.files("../../../DATA/CTD",pattern = "^\\d{4}\\w{2}\\d{3}.hdr",full.names = TRUE)
+ctd.files <- as.factor(gsub(".hdr","",list.files("../../../DATA/CTD",pattern = "^\\d{4}\\w{2}\\d{3}.hdr")))
+# Extract the deployment time and other info from the header file
+# Create a data frame for header info
+all.ctd.hdr <- data.frame()
+for(i in 1:length(ctd.hdr)){
+  # create a factor for the cast name
+  cast <- ctd.files[i]
+  # scan header for text extraction
+  txt <- readLines(ctd.hdr[i])
+  # extract cast date as POSIXct
+  cast.date  <- as.POSIXct(str_extract(unlist(str_extract_all(txt, 
+                          pattern = '\\* NMEA UTC \\(Time\\).*\\d{2}')),"\\w{3}\\s\\d{2}\\s\\d{4}\\s\\d{2}:\\d{2}:\\d{2}"),
+                          format = "%b %d %Y %H:%M:%S") # * NMEA UTC (Time) = Jun 29 2016 15:15:09
+  if(length(cast.date)==0){
+    cast.date  <- as.POSIXct(str_extract(unlist(str_extract_all(txt, 
+                          pattern = '\\*Cast[\\s\\S]*stop')),"\\d{2}\\s\\w{3}\\s\\d{4}\\s\\d{2}:\\d{2}:\\d{2}"),
+                          format = "%d %b %Y %H:%M:%S")
+  }
+  # assemble a temporary data frame and add to all.uctd.hdr
+  temp.df <- data.frame(cast,cast.date)
+  all.ctd.hdr <- rbind(all.ctd.hdr,temp.df)
+}
+
+# Match UCTD headers to nav data
+nav.match.ctd <- data.frame()
+for(i in 1:dim(all.ctd.hdr)[1]){
+  min.diff <- which.min(abs(difftime(all.ctd.hdr$cast.date[i],nav$nav.date)))
+  nav.match.ctd <- rbind(nav.match.ctd,nav[min.diff, ])
+}
+# combine header and nav data
+all.ctd.hdr <- cbind(all.ctd.hdr,nav.match.ctd)
+all.ctd.hdr$lag <- difftime(all.ctd.hdr$cast.date,all.ctd.hdr$nav.date)
+
+# Process all CTD casts
+# list processed CTD ASCII files
+ctd.proc <- list.files("../../../DATA/CTD",pattern = "^\\d{4}\\w{2}\\d{3}_processed.asc",full.names=TRUE)
+# create a data frame for storing results
+all.ctd <- data.frame()
+for(i in 1:length(ctd.proc)){
+  # read the ucast and rename columns
+  ucast <- read.table(ctd.proc[i],header = TRUE)
+  names(ucast) <- c("P","T","C","Z","S","Sv","avgsVCM","Dens","Flag")
+  # make depth negative
+  ucast$Z <- -ucast$Z
+  # add ucast name to df
+  ucast$cast <- ctd.files[i]
+  # add to resultsConductivity Depth Plot
+  all.ctd <- rbind(all.ctd,ucast)
+}
+# reorder all.ctd by cast and depth
+all.ctd <- all.ctd[order(all.ctd$cast,-all.ctd$Z),]
+# filter all.ctd to remove temperature data < 0 and > 25
+all.ctd <- droplevels(subset(all.ctd,all.ctd$T > min.T & all.ctd$T < max.T))
+# filter all.ctd to remove temperature data < 0 and > 25
+all.ctd <- droplevels(subset(all.ctd,all.ctd$S > min.S & all.ctd$S < max.S))
+# calculate max depth of each cast
+ctd.depth <- ddply(all.ctd,.(cast),summarise,max.depth = min(Z))
+
+# extract cast number from filename
+all.ctd.hdr$order.occ <- as.numeric(substr(levels(all.ctd.hdr$cast),nchar(levels(all.ctd.hdr$cast)[1])-2,nchar(levels(all.ctd.hdr$cast)[1])))
+all.ctd.hdr <- merge(all.ctd.hdr,ctd.depth,by='cast')
+
+# summarize uctd casts for water classification
+ctd.class <- ddply(all.ctd,.(cast),summarise,
+                    min.T = min(T),
+                    min.S = min(S),
+                    max.T = max(T),
+                    max.S = max(S),
+                    class = "CC")
+# assign classes based on salinity
+ctd.class$class[ctd.class$min.S <= 31.4] <- "Plume"
+ctd.class$class[ctd.class$min.S >= 33.4] <- "Spicy"
+# add water mass to the summary table and cast data for plotting
+all.ctd <- merge(all.ctd,ctd.class[ ,c("cast","class")],by = 'cast',all.x=TRUE)
+all.ctd.hdr <- merge(all.ctd.hdr,ctd.class[ ,c("cast","class")],by = 'cast',all.x=TRUE)
+# reorder ctd.summ columns
+all.ctd.hdr <- all.ctd.hdr[ ,c("order.occ","cast","cast.date","MX512.Lat","MX512.Lon","max.depth","class")]
+# write table to CSV
+write.csv(all.ctd.hdr,file="../Data/ctd_cast_cummary.csv",quote = FALSE,row.names=FALSE)
+```
+
+```{r DepthTimeRegression,eval=FALSE}
+# # write.csv(all.uctd[ ,c("cast","s","Z","MX512.SOG")],file = "depth_time.csv",row.names = FALSE,quote = FALSE)
+# x <- all.uctd$s[all.uctd$cast == "1606RL_UCTD_T001"]
+# y <- all.uctd$Z[all.uctd$cast == "1606RL_UCTD_T001"]
+# plot(x,y)
+# a_start<- -1 #param a is the y value when x=0
+# b_start<-2*log(2)/a_start #b is the decay rate
+# # m<-nls(y~a*x^2)
+# m<-nls(y~a*exp(-b*x),start=list(a=a_start,b=b_start))
+# lines(x,predict(m),col="red",lty=2,lwd=3)
+# 
+# x <- all.uctd$s
+# y <- all.uctd$Z
+# 
+# df <- data.frame(x,y)
+# df <- df[order(y),]
+# 
+# 
+# model <- lm(y ~ poly(x,3))
+# summary(model)
+# 
+# predicted.intervals <- predict(model,data.frame(x=x),interval='confidence',level=0.99)
+# predicted.intervals <- as.data.frame(predicted.intervals)
+# predicted.intervals <- predicted.intervals[order(-predicted.intervals$fit), ]
+# plot(x,y,col='deepskyblue4',xlab='Time',main='Observed data')
+# lines(x,predicted.intervals$fit,col='green',lwd=3)
+# lines(x,predicted.intervals[,2],col='black',lwd=1)
+# lines(x,predicted.intervals[,3],col='black',lwd=1)
+```
+
+**Table 1.** Summary of underway CTD (UCTD) casts conducted during the 2016 Summer CCE Survey aboard FSV _Reuben Lasker_. 
+
+```{r UCTDCastSummary}
+# make a copy of uctd.summ
+uctd.table <- uctd.summ
+uctd.table$cast.date <- format(uctd.table$cast.date,"%m/%d/%Y %H:%M:%S") 
+# rename columns
+names(uctd.table) <- c("Cast","Filename","Date/time","Lat","Lon","SOG (kt)","Time (s)","Depth (m)","Class")
+# print table
+kable(uctd.table)
+```  
+
+\newpage  
+
+**Table 2.** Summary of traditional CTD casts conducted during the 2016 Summer CCE Survey aboard FSV _Reuben Lasker_. 
+
+```{r CTDCastSummary}
+# make a copy of uctd.summ
+ctd.table <- all.ctd.hdr
+ctd.table$cast.date <- format(ctd.table$cast.date,"%m/%d/%Y %H:%M:%S") 
+# rename columns
+names(ctd.table) <- c("Order Occupied","Filename","Date/time","Lat","Lon","Depth (m)","Class")
+# print table
+kable(ctd.table)
+```  
+
+\newpage  
+
+**Figure 1.** Location of underway UCTD (white numbers; left panel) and CTD (yellow numbers; right panel) casts. Gray numbers indicate acoustic transect numbers in the survey instructions. UCTD and CTD cast numbers correspond to those in **Table 1** and **Table 2**, respectively.  
+
+```{r AllUctdMap,results='hide'}
+# get map center
+uctd.lat <- mean(range(uctd.table$Lat),na.rm = TRUE)
+uctd.lon <- mean(range(uctd.table$Lon))
+# get Google map from calibration location
+uctd.map <- ggmap(get_map(paste(uctd.lat,uctd.lon,sep=","),source="google",maptype="satellite",zoom=4))
+
+# set percentage of area around data extent (i.e., 0.1 = 10%)
+pad <- 0.15 
+# determine the lat/lon to add to the data range to achieve the desired frame
+pad.x <- (range(uctd.table$Lon)[2] - range(uctd.table$Lon)[1])*pad
+pad.y <- (range(uctd.table$Lat)[2] - range(uctd.table$Lat)[1])*pad
+# set limits for desired frame
+range.lat <- c(min(uctd.table$Lat)-pad.x,max(uctd.table$Lat)+pad.x)
+range.lon <- c(min(uctd.table$Lon)-pad.y,max(uctd.table$Lon)+pad.y)
+
+# create main map using ggmap
+map.uctd <- uctd.map + 
+  geom_path(data=wpt,aes(lon,lat,group=transect),colour = 'gray50') +
+  geom_path(data=nav,aes(MX512.Lon,MX512.Lat)) + 
+  geom_text(data=tx.labels,aes(x=lon,y=lat,label = transect),size=1.5,colour="gray50") + 
+  geom_text(data=uctd.table,aes(x=Lon,y=Lat,label = Cast),size=1.5,colour="white") + 
+  xlab("\nLongitude (W)") + ylab("Latitude (N)\n") + 
+  theme_bw() + theme(plot.background=element_blank(),axis.text.y = element_text(angle = 90, hjust=0.5)) + 
+  coord_map(xlim=range.lon,ylim=range.lat)
+# save map
+ggsave("../Figs/map_uctd.png", map.uctd)
+```
+
+```{r AllCtdMap,results='hide'}
+# create main map using ggmap
+map.ctd <- uctd.map + 
+  geom_path(data=wpt,aes(lon,lat,group=transect),colour = 'gray50') +
+  geom_path(data=nav,aes(MX512.Lon,MX512.Lat)) + 
+  geom_text(data=tx.labels,aes(x=lon,y=lat,label = transect),size=1.5,colour="gray50") + 
+  geom_text(data=all.ctd.hdr,aes(x= MX512.Lon,y= MX512.Lat,label = order.occ),size=1.5,colour="yellow") + 
+  xlab("\nLongitude (W)") + ylab("Latitude (N)\n") + 
+  theme_bw() + theme(plot.background=element_blank(),axis.text.y = element_text(angle = 90, hjust=0.5)) + 
+  coord_map(xlim=range.lon,ylim=range.lat)
+# save map
+ggsave("../Figs/map_ctd.png", map.ctd)
+```
+
+```{r CombineMaps}
+both.maps <- plot_grid(map.uctd, map.ctd, align = "h")
+ggsave("../Figs/map_all_ctds.png", both.maps,width = 8,height = 5,units = "in")
+```
+
+![](../Figs/map_all_ctds.png)
+
+\newpage  
+
+**Figure 2.** Descent rate of the UCTD by depth and vessel speed. The dashed line represents the Loess-smoothed descent rate.  
+
+```{r DescentRateDepthPlot,echo=FALSE}
+# plot descent rate v depth
+uctd.dZt <- ggplot(data=all.uctd,aes(dZt,Z,group=cast,colour=MX512.SOG)) + 
+  geom_path(alpha = 0.75) +
+  xlab("\nDescent rate (m/s)") + ylab("Depth (m)\n") + 
+  scale_x_continuous(limits = c(0,ceiling(max(all.uctd$dZt,na.rm=TRUE))),
+                     breaks = seq(0, ceiling(max(all.uctd$dZt,na.rm=TRUE)), 0.5),expand = c(0,0)) + 
+  scale_y_continuous(limits = c(round(min(all.uctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.uctd$Z),digits=-2),0,25),expand = c(0,0)) + 
+  scale_colour_gradientn("Vessel\nspeed (kt)\n",colours=rev(rainbow(7))) +
+  theme_bw() + 
+  theme(panel.grid.major = element_line(size=0.75),
+        legend.position =  c(.8, .2),
+        legend.background = element_rect())
+ggsave(uctd.dZt, file = "../Figs/uctd_dZt_v_Z.png")
+```
+
+![](../Figs/uctd_dZt_v_Z.png)  
+
+\newpage  
+
+**Figure 3.** Maximum depth (m) of UCTD casts versus time. The dashed line represent the Loess-smoothed depth profiles.  
+
+```{r DepthTimePlot,echo=FALSE}
+# plot depth v time
+uctd.Z <- ggplot(data=all.uctd,aes(s,Z,group=factor(cast),colour=MX512.SOG)) + 
+  geom_path(alpha = 0.75) +
+  xlab("\nTime (s)") + ylab("Depth (m)\n") + 
+  scale_x_continuous(limits = c(0,max(all.uctd$s)+10),
+                     breaks = seq(0, max(all.uctd$s)+10, 25),expand = c(0,0)) + 
+  scale_y_continuous(limits = c(round(min(all.uctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.uctd$Z),digits=-2),0,25),expand = c(0,0)) + 
+  scale_colour_gradientn("Vessel\nspeed (kt)\n",colours=rev(rainbow(7))) +
+  theme_bw() + 
+  theme(panel.grid.major = element_line(size=0.75),
+        legend.position =  c(.8, .8),
+        legend.background = element_rect()) +
+  geom_smooth(data=all.uctd,se=FALSE,aes(s,Z,group = survey),colour='black',linetype = 2)
+ggsave(uctd.Z,file = "../Figs/uctd_Z_v_time.png")
+```  
+
+![](../Figs/uctd_Z_v_time.png)
+
+\newpage  
+
+**Figure 4.** Temperature versus depth for each UCTD cast.  
+
+```{r TemperatureDepthPlot,echo=FALSE}
+# plot temperature v depth
+uctd.T <- ggplot(data=all.uctd,aes(T,Z,group=cast,colour=factor(cast))) + geom_path(alpha = 0.75) +
+  xlab("\nTemperature (C)") + ylab("Depth (m)\n") + 
+  scale_x_continuous(limits = c(round(min(all.uctd$T),0)-1,round(max(all.uctd$T),0)+1),
+                     breaks = seq(round(min(all.uctd$T),0)-1, round(max(all.uctd$T),0)+1, 2),expand = c(0,0)) + 
+  scale_y_continuous(limits = c(round(min(all.uctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.uctd$Z),digits=-2),0,25),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major = element_line(size=0.75),legend.position = "none")
+ggsave(uctd.T,file = "../Figs/uctd_T_v_Z.png")
+```
+
+![](../Figs/uctd_T_v_Z.png)  
+
+\newpage  
+
+**Figure 5.**  Salinity versus depth for each UCTD cast.
+
+```{r SalinityDepthPlot,echo=FALSE}
+# plot salinity v depth
+uctd.S <- ggplot(data=all.uctd,aes(S,Z,group=cast,colour=factor(cast))) + geom_path(alpha = 0.75) +
+  xlab("\nSalinity") + ylab("Depth (m)\n") +
+  scale_x_continuous(limits = c(round(min(all.uctd$S),2)-0.1,round(max(all.uctd$S),2)+0.1),
+                     breaks = seq(round(min(all.uctd$S),2)-0.1, round(max(all.uctd$S),2)+0.1, 1),expand = c(0,0)) +  
+  scale_y_continuous(limits = c(round(min(all.uctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.uctd$Z),digits=-2),0,25),expand = c(0,0)) + 
+  theme_bw()+
+  theme(panel.grid.major = element_line(size=0.75),legend.position = "none")
+ggsave(uctd.S,file = "../Figs/uctd_S_v_Z.png")
+```
+
+![](../Figs/uctd_S_v_Z.png)  
+
+\newpage  
+
+**Figure 6.**  Temperature-salinity plot for all UCTD casts (left) and the location of UCTD casts (right), symbolized by water mass.
+
+```{r UCTDTsPlot,echo=FALSE}
+# plot salinity v depth
+uctd.TS <- ggplot(data=all.uctd,aes(S,T,group=cast,colour=factor(class))) + 
+  geom_point(alpha = 0.5,size=1) +
+  xlab("\nSalinity") + ylab("Temperature (C)\n") +
+  # scale_x_continuous(limits = c(round(min(all.uctd$S),2)-0.1,round(max(all.uctd$S),2)+0.1),
+  #                    breaks = seq(round(min(all.uctd$S),2)-0.1, round(max(all.uctd$S),2)+0.1, 1),expand = c(0,0)) +  
+  scale_x_continuous(limits = c(29,35),
+                     breaks = seq(29,35,1),expand = c(0,0)) +  
+  scale_y_continuous(limits = c(floor(min(all.uctd$T)),ceiling(max(all.uctd$T))),
+                     breaks = seq(floor(min(all.uctd$T)),ceiling(max(all.uctd$T)),2),expand = c(0,0)) + 
+  scale_colour_hue("Water\nmass") +
+  theme_bw()+
+  theme(panel.grid.major = element_line(size=0.75),
+        legend.position =  c(.2, .2),
+        legend.background = element_rect())
+
+ggsave(uctd.TS,file = "../Figs/uctd_S_v_T.png")
+
+# create main map using ggmap
+map.uctd.TS <- uctd.map + 
+  geom_path(data=wpt,aes(lon,lat,group=transect),colour = 'gray50') +
+  geom_path(data=nav,aes(MX512.Lon,MX512.Lat)) + 
+  geom_text(data=tx.labels,aes(x=lon,y=lat,label = transect),size=1.5,colour="gray50") + 
+  geom_point(data=uctd.table,aes(x=Lon,y=Lat,colour = Class),size=1,alpha=0.75) +
+  scale_colour_hue() +
+  xlab("\nLongitude (W)") + ylab("Latitude (N)\n") + 
+  theme_bw() + theme(plot.background=element_blank(),axis.text.y = element_text(angle = 90, hjust=0.5),legend.position = "none") + 
+  coord_map(xlim=range.lon,ylim=range.lat)
+uctd.TS.map <- plot_grid(uctd.TS,map.uctd.TS,align="h")
+ggsave("../Figs/map_T-S_uctd.png", uctd.TS.map,width = 8,height = 5,units = "in")
+```
+
+![](../Figs/map_T-S_uctd.png)  
+
+\newpage  
+
+**Figure 7.**  Sound speed versus depth for each UCTD cast.
+
+```{r SoundSpeedDepthPlot,echo=FALSE}
+# plot sound speed v depth
+uctd.Sv <- ggplot(data=all.uctd,aes(Sv,Z,group=cast,colour=factor(cast))) + geom_path(alpha = 0.75) +
+  xlab("\nSound speed (m/s)") + ylab("Depth (m)\n") +
+  scale_x_continuous(limits = c(round(min(all.uctd$Sv),0)-1,round(max(all.uctd$Sv),0)+1),
+                     breaks = seq(round(min(all.uctd$Sv),0)-1, round(max(all.uctd$Sv),0)+1, 10),expand = c(0,0)) +  
+  scale_y_continuous(limits = c(round(min(all.uctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.uctd$Z),digits=-2),0,25),expand = c(0,0)) + 
+  theme_bw()+
+  theme(panel.grid.major = element_line(size=0.75),legend.position = "none")
+ggsave(uctd.Sv,file = "../Figs/uctd_sV_v_T.png")
+```
+
+![](../Figs/uctd_Sv_v_T.png)  
+
+\newpage  
+
+**Figure 8.** Temperature versus depth for each CTD cast.  
+
+```{r CtdTemperatureDepthPlot,echo=FALSE}
+# plot temperature v depth
+ctd.T <- ggplot(data=all.ctd,aes(T,Z,group=cast,colour=factor(cast))) + geom_path(alpha = 0.75) +
+  xlab("\nTemperature (C)") + ylab("Depth (m)\n") + 
+  # scale_x_continuous(limits = c(3,25),
+  #                    breaks = seq(round(min(all.ctd$T),0)-1, round(max(all.ctd$T),0)+1, 2),expand = c(0,0)) +
+  scale_x_continuous(limits = c(round(min(all.ctd$T),0)-1,round(max(all.ctd$T),0)+1),
+                     breaks = seq(round(min(all.ctd$T),0)-1, round(max(all.ctd$T),0)+1, 2),expand = c(0,0)) +
+  scale_y_continuous(limits = c(round(min(all.ctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.ctd$Z),digits=-2),0,25),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major = element_line(size=0.75),legend.position = "none")
+ggsave(ctd.T,file = "../Figs/ctd_T_v_Z.png")
+```
+
+![](../Figs/ctd_T_v_Z.png)  
+
+\newpage  
+
+**Figure 9.**  Salinity versus depth for each CTD cast.
+
+```{r CtdSalinityDepthPlot,echo=FALSE}
+# plot salinity v depth
+ctd.S <- ggplot(data=all.ctd,aes(S,Z,group=cast,colour=factor(cast))) + geom_path(alpha = 0.75) +
+  xlab("\nSalinity") + ylab("Depth (m)\n") +
+  scale_x_continuous(limits = c(round(min(all.ctd$S),2)-0.1,round(max(all.ctd$S),2)+0.1),
+                     breaks = seq(round(min(all.ctd$S),2)-0.1, round(max(all.ctd$S),2)+0.1, 1),expand = c(0,0)) +  
+  scale_y_continuous(limits = c(round(min(all.ctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.ctd$Z),digits=-2),0,25),expand = c(0,0)) + 
+  theme_bw()+
+  theme(panel.grid.major = element_line(size=0.75),legend.position = "none")
+ggsave(ctd.S,file = "../Figs/ctd_S_v_Z.png")
+```
+
+![](../Figs/ctd_S_v_Z.png)  
+
+\newpage  
+
+**Figure 10.**  Temperature-salinity plot for all CTD casts (left) and the location of CTD casts (right), symbolized by water mass.
+
+```{r CTDTsPlot,echo=FALSE}
+# plot salinity v depth
+ctd.TS <- ggplot(data=all.ctd,aes(S,T,group=cast,colour=factor(class))) + 
+  geom_point(alpha = 0.5,size=1) +
+  xlab("\nSalinity") + ylab("Temperature (C)\n") +
+  scale_x_continuous(limits = c(29,35),
+                     breaks = seq(29,35,1),expand = c(0,0)) +  
+  # scale_x_continuous(limits = c(round(min(all.ctd$S),2)-0.1,round(max(all.ctd$S),2)+0.1),
+  #                    breaks = seq(round(min(all.ctd$S),2)-0.1, round(max(all.ctd$S),2)+0.1, 1),expand = c(0,0)) +  
+  scale_y_continuous(limits = c(floor(min(all.ctd$T)),ceiling(max(all.ctd$T))),
+                     breaks = seq(floor(min(all.ctd$T)),ceiling(max(all.ctd$T)),2),expand = c(0,0)) + 
+  scale_colour_hue("Water\nmass") +
+  theme_bw()+
+  theme(panel.grid.major = element_line(size=0.75),
+        legend.position =  c(.2, .2),
+        legend.background = element_rect())
+ggsave(ctd.TS,file = "../Figs/uctd_S_v_T.png")
+
+# create main map using ggmap
+map.ctd.TS <- uctd.map + 
+  geom_path(data=wpt,aes(lon,lat,group=transect),colour = 'gray50') +
+  geom_path(data=nav,aes(MX512.Lon,MX512.Lat)) + 
+  geom_text(data=tx.labels,aes(x=lon,y=lat,label = transect),size=1.5,colour="gray50") + 
+  geom_point(data=ctd.table,aes(x=Lon,y=Lat,colour = Class),size=1,alpha=0.75) +
+  scale_colour_hue() +
+  xlab("\nLongitude (W)") + ylab("Latitude (N)\n") + 
+  theme_bw() + theme(plot.background=element_blank(),axis.text.y = element_text(angle = 90, hjust=0.5),legend.position = "none") + 
+  coord_map(xlim=range.lon,ylim=range.lat)
+ctd.TS.map <- plot_grid(ctd.TS,map.ctd.TS,align="h")
+ggsave("../Figs/map_T-S_ctd.png", ctd.TS.map,width = 8,height = 5,units = "in")
+```
+
+![](../Figs/map_T-S_ctd.png)  
+
+\newpage  
+
+**Figure 11.**  Sound speed versus depth for each CTD cast.
+
+```{r CtdSoundSpeedDepthPlot,echo=FALSE}
+# plot sound speed v depth
+ctd.Sv <- ggplot(data=all.ctd,aes(Sv,Z,group=cast,colour=factor(cast))) + geom_path(alpha = 0.75) +
+  xlab("\nSound speed (m/s)") + ylab("Depth (m)\n") +
+  scale_x_continuous(limits = c(round(min(all.ctd$Sv),0)-1,round(max(all.ctd$Sv),0)+1),
+                     breaks = seq(round(min(all.ctd$Sv),0)-1, round(max(all.ctd$Sv),0)+1, 10),expand = c(0,0)) +  
+  scale_y_continuous(limits = c(round(min(all.ctd$Z),digits=-2),0),
+                     breaks = seq(round(min(all.ctd$Z),digits=-2),0,25),expand = c(0,0)) + 
+  theme_bw()+
+  theme(panel.grid.major = element_line(size=0.75),legend.position = "none")
+ggsave(ctd.Sv,file = "../Figs/ctd_sV_v_T.png")
+```
+
+![](../Figs/ctd_Sv_v_T.png)
