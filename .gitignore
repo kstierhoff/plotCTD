@@ -5,6 +5,7 @@
 *.png
 *.pdf
 *.html
+*.csv
 Thumbs.db
 Figs/
 Doc/Archive/
