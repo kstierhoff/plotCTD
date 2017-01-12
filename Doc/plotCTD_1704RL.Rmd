@@ -1,5 +1,5 @@
 ---
-title: "CTD and UCTD casts during the 2016 Summer CCE Survey (1606RL)"
+title: "CTD and UCTD casts during the 2017 Spring CPS Survey (1704RL)"
 author: "Kevin L. Stierhoff"
 date: '`r format(Sys.time(), "%d %B %Y")`'
 output:
