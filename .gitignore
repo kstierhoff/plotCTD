@@ -6,6 +6,8 @@
 *.pdf
 *.html
 *.csv
+*.elg
 Thumbs.db
 Figs/
 Doc/Archive/
+Maps/
