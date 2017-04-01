@@ -9,21 +9,44 @@ output:
     toc: yes
 ---
 
-```{r global_options,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
-knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,include=FALSE,fig.width=5, fig.height=7, fig.align="center")
-```
-
-```{r SetUp}
+```{r SetUp,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
 rm(list=ls())
-# load libraries
-suppressPackageStartupMessages(library(forecast)); library(stringr);library(surveyR);
-suppressPackageStartupMessages(library(plyr)); suppressPackageStartupMessages(library(gdata));library(knitr);
-suppressPackageStartupMessages(library(ggplot2));library(ggmap);library(cowplot);library(raster);library(dplyr);
+# List packages required to run the script
+pkgs <- c("ggplot2","xlsx","raster","cowplot","dplyr","devtools",
+          "tidyr","DBI","stringr","plyr","gdata")
+
+# Install and load all CRAN packages provided from a character vector
+load_pkgs = function(pkgs){
+  new_pkgs = pkgs[!(pkgs %in% installed.packages()[ ,'Package'])]
+  if(length(new_pkgs) > 0) install.packages(new_pkgs)
+  invisible(lapply(pkgs,function(x)
+    suppressPackageStartupMessages(library(x,character.only=TRUE))))
+}
+# Load packages
+load_pkgs(pkgs)
+
+# List github packages required to run the script
+dev_pkgs <- c("surveyR")
+dev_repo <- "kstierhoff"
+
+# Install and load all github packages provided from a character vector
+load_dev_pkgs = function(repo,pkgs){
+  new_pkgs = pkgs[!(pkgs %in% installed.packages()[ ,'Package'])]
+  new_pkgs_path = paste(dev_repo,dev_pkgs,sep="/")
+  if(length(new_pkgs) > 0) install_github(new_pkgs)
+  invisible(lapply(pkgs,function(x)
+    suppressPackageStartupMessages(library(x,character.only=TRUE))))
+}
+# Load github packages
+load_dev_pkgs(dev_repo,dev_pkgs)
 
 survey.name <- "2017 Spring CPS Survey"
 survey.vessel <- "FSV Reuben Lasker" 
 # download new maps or use existing
 download.maps <- FALSE # download new maps, or use existing
+
+# global knitr chunk options
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,include=FALSE,fig.width=5, fig.height=7, fig.align="center")
 ```
 
 ```{r FilterVariables}
