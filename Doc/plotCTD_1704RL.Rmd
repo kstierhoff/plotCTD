@@ -3,17 +3,17 @@ title: "CTD and UCTD casts during the 2017 Spring CPS Survey (1704RL)"
 author: "Kevin L. Stierhoff"
 date: '`r format(Sys.time(), "%d %B %Y")`'
 output:
-  html_notebook:
-    toc: yes
   html_document:
+    toc: yes
+  html_notebook:
     toc: yes
 ---
 
 ```{r SetUp,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
 rm(list=ls())
 # List packages required to run the script
-pkgs <- c("ggplot2","xlsx","raster","cowplot","dplyr","devtools",
-          "tidyr","DBI","stringr","plyr","gdata")
+pkgs <- c("ggplot2","xlsx","raster","cowplot","dplyr","devtools","knitr",
+          "tidyr","DBI","stringr","plyr","gdata","forecast")
 
 # Install and load all CRAN packages provided from a character vector
 load_pkgs = function(pkgs){
@@ -63,7 +63,7 @@ max.S <- 35
 # read waypoints from survey instructions
 wpt <- read.csv("../../../PLANNING/NAV/acoustic_waypoints.csv")
 # create labels for transects
-tx.labels <- ddply(wpt,.(label),summarise,lon = min(lon) - 0.2,lat = min(lat))
+tx.labels <- ddply(wpt,.(label),summarise,lon = min(lon) - 0.05,lat = min(lat) - 0.05)
 ```
 
 ```{r GetMapData,}
