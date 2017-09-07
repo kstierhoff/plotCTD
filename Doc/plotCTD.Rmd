@@ -38,11 +38,11 @@ survey.dir    <- "T:/SURVEYS/20170322_LASKER_SpringCPS"
 data.dir      <- "T:/SURVEYS/20170322_LASKER_SpringCPS/DATA"
 
 # Control script behavior
-copy.files      <- F # copy data files from data to plotCTD directory
+copy.files      <- T # copy data files from data to plotCTD directory
 overwrite.files <- T # overwrite existing files
 get.nav         <- T # download nav data from ERDDAP
-process.files   <- F # process CTD/UCTD files
-draw.figures    <- F # create new figures
+process.files   <- T # process CTD/UCTD files
+draw.figures    <- T # create new figures
 
 # global knitr chunk options
 knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,include=FALSE)
@@ -136,7 +136,7 @@ base.map <- ggplot(wc, aes(long, lat)) +
   theme_bw() + theme(axis.text.y = element_text(angle = 90, hjust=0.5),
                      legend.position =  c(0,0),
                      legend.justification = c(0,0),
-                     legend.background = element_blank(),
+                     panel.background = element_rect(fill = alpha("lightblue",0.5)),
                      legend.key = element_blank(),
                      plot.title = element_text(hjust=0.5))
 # save plot
@@ -169,7 +169,7 @@ if(process.files==TRUE){
     sn <- as.numeric(str_extract(unlist(str_extract_all(txt, pattern = '\\*SerialNumber=\\d{8}'))[1],"\\d{8}"))
     # assemble a temporary data frame and add to all.uctd.hdr
     temp.df <- data.frame(cast,cast.date,sn)
-    all.uctd.hdr <- rbind(all.uctd.hdr,temp.df)
+    all.uctd.hdr <- bind_rows(all.uctd.hdr,temp.df)
   }
   
   # Process UCTD cast files #####
@@ -198,7 +198,7 @@ if(process.files==TRUE){
     # add ucast name to df
     ucast$cast <- uctd.files[i]
     # add to resultsConductivity Depth Plot
-    all.uctd <- rbind(all.uctd,ucast)
+    all.uctd <- bind_rows(all.uctd,ucast)
   }
   all.uctd <- arrange(all.uctd,cast,scan) 
   # save results 
@@ -211,10 +211,10 @@ if(process.files==TRUE){
 nav.match.uctd <- data.frame()
 for(i in 1:nrow(all.uctd.hdr)){
   min.diff <- which.min(abs(difftime(all.uctd.hdr$cast.date[i],nav$datetime)))
-  nav.match.uctd <- rbind(nav.match.uctd,nav[min.diff, ])
+  nav.match.uctd <- bind_rows(nav.match.uctd,nav[min.diff, ])
 }
 # combine header and nav data
-all.uctd.hdr <- cbind(all.uctd.hdr,nav.match.uctd)
+all.uctd.hdr <- bind_cols(all.uctd.hdr,nav.match.uctd)
 all.uctd.hdr$lag <- difftime(all.uctd.hdr$cast.date,all.uctd.hdr$datetime)
 
 # filter for bad salinity values
@@ -283,7 +283,7 @@ if(process.files==TRUE){
     }
     # assemble a temporary data frame and add to all.uctd.hdr
     temp.df <- data.frame(cast,cast.date)
-    all.ctd.hdr <- rbind(all.ctd.hdr,temp.df)
+    all.ctd.hdr <- bind_rows(all.ctd.hdr,temp.df)
   }
   
   # list processed CTD ASCII files
@@ -358,7 +358,7 @@ write.csv(all.ctd.hdr,file="../Output/cast_summary_ctd.csv",quote = FALSE,row.na
 ## Cast summary  
 Summary of underway CTD (UCTD) casts conducted during the `r survey.name` aboard _`r survey.vessel`_. 
 
-```{r UCTDCastSummary}
+```{r UCTDCastSummary,include=TRUE}
 # make a copy of uctd.summ
 uctd.table <- uctd.summ
 uctd.table$cast.date <- format(uctd.table$cast.date,"%m/%d/%Y %H:%M:%S") 
@@ -524,7 +524,11 @@ if(draw.figures==TRUE){
   map.uctd.TS <- base.map + 
     geom_path(data=nav,aes(Lon,Lat)) + 
     geom_point(data=uctd.table,aes(x=Lon,y=Lat,colour = Class),size=2,alpha=0.75) +
-    scale_colour_hue()
+    scale_colour_hue() +
+    theme(panel.grid.major = element_line(size=0.75),
+      legend.position =  c(0,0),
+      legend.justification = c(0,0),
+      legend.background = element_blank())
   # combine plots
   uctd.TS.map <- plot_grid(uctd.TS,map.uctd.TS,align="h") 
   # save plot
@@ -538,7 +542,7 @@ if(draw.figures==TRUE){
 ## Cast summary 
 Summary of traditional CTD casts conducted during the `r survey.name` aboard _`r survey.vessel`_. 
 
-```{r CTDCastSummary}
+```{r CTDCastSummary,include=TRUE}
 # make a copy of uctd.summ
 ctd.table <- all.ctd.hdr
 ctd.table$cast.date <- format(ctd.table$cast.date,"%m/%d/%Y %H:%M:%S") 
