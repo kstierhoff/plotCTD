@@ -33,9 +33,8 @@ library(surveyR)
 # User input
 survey.name   <- "1704RL"
 survey.vessel <- "FSV Reuben Lasker" 
-plotCTD.dir   <- "D:/CODE/R/KLS_packages/plotCTD"
-survey.dir    <- "T:/SURVEYS/20170322_LASKER_SpringCPS"
-data.dir      <- "T:/SURVEYS/20170322_LASKER_SpringCPS/DATA"
+survey.dir    <- "//swc-storage1/AST2/SURVEYS/20170322_LASKER_SpringCPS"
+data.dir      <- "//swc-storage1/AST2/SURVEYS/20170322_LASKER_SpringCPS/DATA"
 
 # Control script behavior
 copy.files      <- T # copy data files from data to plotCTD directory
