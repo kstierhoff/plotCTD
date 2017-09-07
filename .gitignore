@@ -7,8 +7,7 @@
 *.html
 *.csv
 *.elg
+*.asc
+*.hdr
+*.Rdata
 Thumbs.db
-Data/
-Figs/
-Doc/Archive/
-Maps/
