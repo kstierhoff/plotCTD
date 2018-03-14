@@ -258,11 +258,11 @@ uctd.summ <- select(uctd.summ,cast.num,cast,cast.date,Lat,Lon,SOG,time,max.depth
 ```
 
 ```{r ProcessCTDCasts}
-# list raw UCTD ASCII files
-ctd.hdr <- list.files("../Data/CTD",pattern = "^\\d{4}\\w{2}\\d{3}.hdr",full.names = TRUE)
-ctd.files <- as.factor(gsub(".hdr","",list.files("../Data/CTD",pattern = "^\\d{4}\\w{2}\\d{3}.hdr")))
-
 if(process.files==TRUE){
+  # list raw UCTD ASCII files
+  ctd.hdr <- list.files("../Data/CTD",pattern = "^\\d{4}\\w{2}\\d{3}.hdr",full.names = TRUE)
+  ctd.files <- as.factor(gsub(".hdr","",list.files("../Data/CTD",pattern = "^\\d{4}\\w{2}\\d{3}.hdr")))
+  
   # Extract the deployment time and other info from the header file
   # Create a data frame for header info
   all.ctd.hdr <- data.frame()
