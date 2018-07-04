@@ -5,9 +5,9 @@
 *.png
 *.pdf
 *.html
-*.csv
 *.elg
 *.asc
 *.hdr
 *.Rdata
+Output/*.csv
 Thumbs.db
