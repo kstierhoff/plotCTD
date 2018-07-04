@@ -338,10 +338,11 @@ uctd.summ <- uctd.summ %>%
 ```{r ProcessCTDCasts}
 if (process.files) {
   # list raw UCTD ASCII files
-  ctd.hdr <- list.files(file.path(data.dir, "CTD"),
+  ctd.hdr <- list.files(here("Data/CTD"),
                         pattern = paste(ctd.prefix,".hdr", sep = ""),
                         full.names = T)
-  ctd.files <- as.factor(gsub(".hdr", "", list.files(here("Data/CTD"), pattern = paste(ctd.prefix,".hdr", sep = ""))))
+  ctd.files <- as.factor(gsub(".hdr", "", list.files(here("Data/CTD"), 
+                                                     pattern = paste(ctd.prefix,".hdr", sep = ""))))
   
   # Extract the deployment time and other info from the header file
   # Create a data frame for header info
