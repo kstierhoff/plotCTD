@@ -67,7 +67,7 @@ erddap.headers       <- c("time", "lat", "long", "SOG")
 
 # CTD/UCTD header info
 uctd.prefix <- "1807RL_\\d{3}_UCTD\\d{3}"
-ctd.prefix  <- "1807RL_CTD_\\d{3}"
+ctd.prefix  <- "1807RL\\d{3}"
 
 # Define map height and width (inches) for saved images
 map.height <- 10 # e.g., 8 for spring surveys, 10 for summer surveys
