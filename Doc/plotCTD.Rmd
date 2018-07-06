@@ -67,7 +67,7 @@ erddap.headers       <- c("time", "lat", "long", "SOG")
 
 # CTD/UCTD header info
 uctd.prefix <- "1807RL_\\d{3}_UCTD\\d{3}"
-ctd.prefix  <- "1807RL\\d{3}"
+ctd.prefix  <- "1807\\d{3}"
 
 # Define map height and width (inches) for saved images
 map.height <- 10 # e.g., 8 for spring surveys, 10 for summer surveys
@@ -383,8 +383,8 @@ if (length(ctd.hdr) > 0) {
       txt <- readLines(ctd.hdr[i])
       # extract cast date as POSIXct
       cast.date  <- as.POSIXct(str_extract(
-        unlist(str_extract_all(txt, pattern = '\\* NMEA UTC \\(Time\\).*\\d{2}')),
-        "\\w{3}\\s\\d{2}\\s\\d{4}\\s\\d{2}:\\d{2}:\\d{2}"),
+        unlist(str_extract_all(txt, pattern = '\\* NMEA UTC \\(Time\\).*')),
+        "\\w{3}\\s\\d{2}\\s\\d{4}\\s*\\d{2}:\\d{2}:\\d{2}"),
         format = "%b %d %Y %H:%M:%S") # * NMEA UTC (Time) = Jun 29 2016 15:15:09
       if (length(cast.date) == 0) {
         cast.date  <- as.POSIXct(str_extract(
@@ -512,7 +512,7 @@ if (length(uctd.hdr) > 0) {
       map.uctd <- base.map + 
         geom_path(data = nav, aes(long, lat)) + 
         geom_shadowtext(data = uctd.table, aes(x = Lon, y = Lat, label = Cast),
-                        size = 4, colour = "black", bg.color = "white", fontface = "bold") 
+                        size = 3, colour = "red", bg.color = "white", fontface = "bold") 
     } else {
       # create main map using ggmap
       map.uctd <- base.map + 
@@ -749,7 +749,7 @@ if (draw.figures) {
     map.ctd <- base.map + 
       geom_path(data = nav, aes(long, lat)) + 
       geom_shadowtext(data = ctd.table, aes(x = Lon, y = Lat, label = `Order Occupied`),
-                size = 4, colour = "black", bg.color = "white", fontface = "bold")
+                size = 3, colour = "red", bg.color = "white", fontface = "bold")
   } else {
      # create main map using ggmap
     map.ctd <- base.map + 
