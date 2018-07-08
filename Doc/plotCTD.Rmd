@@ -13,7 +13,7 @@ if (!require("pacman")) install.packages("pacman")
 
 # Install and load required packages from CRAN ---------------------------------
 pacman::p_load(tidyverse,xlsx,cowplot,devtools,knitr,shadowtext,
-          DBI,stringr,gdata,forecast,here,rnaturalearth,viridis)
+          DBI,stringr,gdata,forecast,here,rnaturalearth,viridis,DT)
 
 # Install and load required packages from Github -------------------------------
 # surveyR
@@ -495,7 +495,7 @@ if (length(uctd.hdr) > 0) {
   names(uctd.table) <- c("Cast","Filename","Date/time","Lat","Lon",
                          "SOG (kt)","Time (s)","Depth (m)","Class")
   # print table
-  kable(uctd.table)  
+  datatable(uctd.table)  
 } else {
   cat("No UCTD casts processed.")
 }
@@ -510,7 +510,7 @@ if (length(uctd.hdr) > 0) {
     if (length(uctd.table) > 0) {
       # create main map using ggmap
       map.uctd <- base.map + 
-        geom_path(data = nav, aes(long, lat)) + 
+        geom_path(data = nav, aes(long, lat)) +
         geom_shadowtext(data = uctd.table, aes(x = Lon, y = Lat, label = Cast),
                         size = 3, colour = "red", bg.color = "white", fontface = "bold") 
     } else {
@@ -733,7 +733,7 @@ if (length(ctd.hdr) > 0) {
   names(ctd.table) <- c("Order Occupied", "Filename", "Date/time", 
                         "Lat", "Lon", "Depth (m)", "Class")
   # print table
-  kable(ctd.table)  
+  datatable(ctd.table)  
 } else {
   cat("No CTD casts processed.")
 }
