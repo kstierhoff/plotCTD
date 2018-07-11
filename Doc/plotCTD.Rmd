@@ -154,51 +154,6 @@ if (get.nav) {
 }
 ```
 
-```{r CreateBaseMap}
-# Import landmarks
-locations <- filter(read.csv(here("Data/Map/locations.csv")), name %in% label.list)
-# configure map parameters
-map.bounds <- map_bounds(nav$lat, nav$long, 0.10)
-
-# Get map data
-if (get.map) {
-  na_sf <- ne_countries(scale = "large", returnclass = "sf") %>%
-    filter(subregion %in% c("Northern America","Central America"))
-  save(na_sf, file = here("Data/Map/land_sf.Rdata"))
-} else {
-  load(here("Data/Map/land_sf.Rdata"))
-}
-
-# create base map
-# Create base map
-base.map <- ggplot() +
-  # Plot high-res land polygons
-  geom_sf(data = na_sf, fill = "white", color = "tan4") +
-  # Plot landmarks
-  geom_point(data = locations, aes(lon,lat), size = 2,colour = 'tan4') +
-  geom_shadowtext(data  = locations, aes(lon,lat, label = name), colour = 'gray20', size = 2,
-                  fontface = 'bold', hjust = 0, nudge_x = 0.2, nudge_y = 0.05, 
-                  angle = 25, bg.color = "white") +
-  # Format axes and titles
-  xlab("Longitude") + ylab("Latitude") + 
-  coord_sf(
-    xlim = map.bounds$range.lon,
-    ylim = map.bounds$range.lat) +
-  theme_bw() + 
-  theme(axis.text.y          = element_text(angle = 90, hjust = 0.5),
-        legend.position      =  c(0,0),
-        legend.justification = c(0,0),
-        legend.background    = element_blank(),
-        legend.key           = element_blank(),
-        panel.background     = element_rect(fill = alpha("lightblue", 0.5)),
-        plot.title           = element_text(hjust = 0.5),
-        panel.grid.major     = element_line(color = "white"))
-
-# save plot
-ggsave(base.map, filename = here("Figs/basemap.png"), 
-       width = map.width, height = map.height)
-```
-
 ```{r ProcessUCTDCasts}
 # Process UCTD header files #####
 # List raw UCTD ASCII files
@@ -478,6 +433,51 @@ if (length(ctd.hdr) > 0) {
   write.csv(all.ctd.hdr, file = here("Output/cast_summary_ctd.csv"), 
             quote = F, row.names = F)
 }
+```
+
+```{r CreateBaseMap}
+# Import landmarks
+locations <- filter(read.csv(here("Data/Map/locations.csv")), name %in% label.list)
+# configure map parameters
+map.bounds <- map_bounds(all.uctd.hdr$lat, all.uctd.hdr$long, 0.10)
+
+# Get map data
+if (get.map) {
+  na_sf <- ne_countries(scale = "large", returnclass = "sf") %>%
+    filter(subregion %in% c("Northern America","Central America"))
+  save(na_sf, file = here("Data/Map/land_sf.Rdata"))
+} else {
+  load(here("Data/Map/land_sf.Rdata"))
+}
+
+# create base map
+# Create base map
+base.map <- ggplot() +
+  # Plot high-res land polygons
+  geom_sf(data = na_sf, fill = "white", color = "tan4") +
+  # Plot landmarks
+  geom_point(data = locations, aes(lon,lat), size = 2,colour = 'tan4') +
+  geom_shadowtext(data  = locations, aes(lon,lat, label = name), colour = 'gray20', size = 2,
+                  fontface = 'bold', hjust = 0, nudge_x = 0.2, nudge_y = 0.05, 
+                  angle = 25, bg.color = "white") +
+  # Format axes and titles
+  xlab("Longitude") + ylab("Latitude") + 
+  coord_sf(
+    xlim = map.bounds$range.lon,
+    ylim = map.bounds$range.lat) +
+  theme_bw() + 
+  theme(axis.text.y          = element_text(angle = 90, hjust = 0.5),
+        legend.position      =  c(0,0),
+        legend.justification = c(0,0),
+        legend.background    = element_blank(),
+        legend.key           = element_blank(),
+        panel.background     = element_rect(fill = alpha("lightblue", 0.5)),
+        plot.title           = element_text(hjust = 0.5),
+        panel.grid.major     = element_line(color = "white"))
+
+# save plot
+ggsave(base.map, filename = here("Figs/basemap.png"), 
+       width = map.width, height = map.height)
 ```
 
 # Underway CTD (UCTD) Results
