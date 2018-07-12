@@ -12,8 +12,8 @@ output:
 if (!require("pacman")) install.packages("pacman")
 
 # Install and load required packages from CRAN ---------------------------------
-pacman::p_load(tidyverse,xlsx,cowplot,devtools,knitr,shadowtext,
-          DBI,stringr,gdata,forecast,here,rnaturalearth,viridis,DT)
+pacman::p_load(tidyverse,xlsx,cowplot,devtools,knitr,shadowtext,plotly,sf,
+          DBI,stringr,gdata,forecast,here,rnaturalearth,viridis,DT,mapview)
 
 # Install and load required packages from Github -------------------------------
 # surveyR
@@ -51,7 +51,7 @@ if (is.null(doc.type)) {
 
 # global knitr chunk options
 knitr::opts_chunk$set(
-  echo = F, warning = F, message = F,
+  echo = F, warning = F, message = F, out.width = "100%",
   fig.align = "center", dev = "png", dev.args = list(type = "cairo"), dpi = 150
 )
 ```  
@@ -503,6 +503,18 @@ if (length(uctd.hdr) > 0) {
 
 ## Cast locations
 Location of underway UCTD (red numbers) casts. Gray numbers indicate acoustic transect line numbers from the survey instructions. UCTD cast numbers correspond to those in the previous table.  
+```{r CreateMapData}
+# Configure mapview options
+mapviewOptions(basemaps = c("Esri.OceanBasemap","Esri.WorldImagery","CartoDB.Positron"))
+
+# Create simple features
+nav.sf <- st_as_sf(nav, coords = c("long","lat"),crs = 4326) %>% 
+  summarise(do_union = F) %>% 
+  st_cast("LINESTRING")
+
+uctd.sf <- st_as_sf(all.uctd.hdr, coords = c("long","lat"),crs = 4326) 
+ctd.sf  <- st_as_sf(all.ctd.hdr, coords = c("long","lat"),crs = 4326)  
+```
 
 ```{r AllUctdMap}
 if (length(uctd.hdr) > 0) {
@@ -525,8 +537,10 @@ if (length(uctd.hdr) > 0) {
            width = map.width, height = map.height)
   }
 }
-# Include figure
-include_graphics(here("Figs/map_uctd.png")) 
+# Map casts
+mapview(nav.sf, color = "black",  alpha = 0.5, layer.name = "Vessel track", col.regions = "black") +
+  mapview(uctd.sf, color = "blue", cex = 4, layer.name = "UCTD Casts")
+# include_graphics(here("Figs/map_uctd.png")) 
 ```  
 
 ## Descent rate v. Depth plot
@@ -554,7 +568,8 @@ if (length(uctd.hdr) > 0) {
     # save plot
     ggsave(uctd.dZt, file = here("Figs/uctd_dZt_v_Z.png"))
   }
-  include_graphics(here("Figs/uctd_dZt_v_Z.png")) 
+  ggplotly(uctd.dZt)
+  # include_graphics(here("Figs/uctd_dZt_v_Z.png")) 
 } else {
   include_graphics(here("Figs/uctd_missing.png"))
 }
@@ -587,7 +602,8 @@ if (length(uctd.hdr) > 0) {
     # save plot
     ggsave(uctd.Z, file = here("Figs/uctd_Z_v_time.png"))
   }
-  include_graphics(here("Figs/uctd_Z_v_time.png")) 
+  ggplotly(uctd.Z)
+  # include_graphics(here("Figs/uctd_Z_v_time.png")) 
 } else {
   include_graphics(here("Figs/uctd_missing.png"))
 }
@@ -614,7 +630,8 @@ if (length(uctd.hdr) > 0) {
     # save plot
     ggsave(uctd.T, file = here("Figs/uctd_T_v_Z.png"))
   }
-  include_graphics(here("Figs/uctd_T_v_Z.png"))
+  ggplotly(uctd.T)
+  # include_graphics(here("Figs/uctd_T_v_Z.png"))
 } else {
   include_graphics(here("Figs/uctd_missing.png"))
 }
@@ -641,7 +658,9 @@ if (length(uctd.hdr) > 0) {
     # save plot
     ggsave(uctd.S,file = here("Figs/uctd_S_v_Z.png"))
   }
-  include_graphics(here("Figs/uctd_S_v_Z.png")) 
+  ggplotly(uctd.S)
+  # include_graphics(here("Figs/uctd_S_v_Z.png")) 
+
 } else {
   include_graphics(here("Figs/uctd_missing.png"))
 }
@@ -667,7 +686,8 @@ if (length(uctd.hdr) > 0) {
     # save plot
     ggsave(uctd.Sv, file = here("Figs/uctd_sV_v_Z.png"))
   }
-  include_graphics(here("Figs/uctd_sV_v_Z.png"))
+  ggplotly(uctd.Sv)
+  # include_graphics(here("Figs/uctd_sV_v_Z.png"))
 } else {
   include_graphics(here("Figs/uctd_missing.png"))
 }
@@ -757,14 +777,15 @@ if (draw.figures) {
       geom_shadowtext(aes(mean(map.bounds$range.lon), mean(map.bounds$range.lat), label = "No CTD casts"), 
                       colour = "black", bg.color = "red", size = 6, fontface = "bold")
   }
-    
   # save map
   ggsave(here("Figs/map_ctd.png"), map.ctd, 
          width = map.width, height = map.height)
 }
 
-# Include figure
-include_graphics(here("Figs/map_ctd.png")) 
+# Map casts
+mapview(nav.sf, color = "black",  alpha = 0.5, layer.name = "Vessel track", col.regions = "black") +
+  mapview(ctd.sf, color = "red", cex = 4, layer.name = "CTD Casts")
+# include_graphics(here("Figs/map_ctd.png")) 
 ```  
 
 ```{r CombineMaps}
@@ -799,7 +820,8 @@ if (length(ctd.hdr) > 0) {
     # save plot
     ggsave(ctd.T, file = here("Figs/ctd_T_v_Z.png"))
   }
-  include_graphics(here("Figs/ctd_T_v_Z.png"))
+  # include_graphics(here("Figs/ctd_T_v_Z.png"))
+  ggplotly(ctd.T)
 } else {
   include_graphics(here("Figs/ctd_missing.png"))
 }
@@ -826,7 +848,8 @@ if (length(ctd.hdr) > 0) {
     # save plot
     ggsave(ctd.S,file = here("Figs/ctd_S_v_Z.png"))
   }
-  include_graphics(here("Figs/ctd_S_v_Z.png"))
+  ggplotly(ctd.S)
+  # include_graphics(here("Figs/ctd_S_v_Z.png"))
 } else {
   include_graphics(here("Figs/ctd_missing.png"))
 }
@@ -855,7 +878,8 @@ if (length(ctd.hdr) > 0) {
     # save plot
     ggsave(ctd.Sv, file = here("Figs/ctd_sV_v_T.png"))
   }
-  include_graphics(here("Figs/ctd_sV_v_T.png"))
+  ggplotly(ctd.Sv)
+  # include_graphics(here("Figs/ctd_sV_v_T.png"))
 } else {
   include_graphics(here("Figs/ctd_missing.png"))
 }
