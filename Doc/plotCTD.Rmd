@@ -12,7 +12,7 @@ output:
 if (!require("pacman")) install.packages("pacman")
 
 # Install and load required packages from CRAN ---------------------------------
-pacman::p_load(tidyverse,xlsx,cowplot,devtools,knitr,shadowtext,plotly,sf,
+pacman::p_load(tidyverse,cowplot,devtools,knitr,shadowtext,plotly,sf,
           DBI,stringr,gdata,forecast,lubridate,here,rnaturalearth,viridis,DT,mapview)
 
 # Install and load required packages from Github -------------------------------
@@ -51,7 +51,7 @@ if (is.null(doc.type)) {
 
 # global knitr chunk options
 knitr::opts_chunk$set(
-  echo = F, warning = F, message = F, out.width = "90%", out.height = "90%", 
+  echo = F, warning = F, message = F, 
   fig.align = "center", dev = "png", dev.args = list(type = "cairo"), dpi = 150
 )
 ```  
@@ -547,7 +547,7 @@ mapview(nav.sf, color = "black",  alpha = 0.5, layer.name = "Vessel track", col.
 ## Descent rate v. Depth plot
 Descent rate of the UCTD by depth and vessel speed.  
 
-```{r DescentRateDepthPlot}
+```{r DescentRateDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (draw.figures) {
     # plot descent rate v depth
@@ -582,7 +582,7 @@ if (length(uctd.hdr) > 0) {
 ## Depth v. Time plot
 The dashed line represent the Loess-smoothed depth profiles.  
 
-```{r DepthTimePlot}
+```{r DepthTimePlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (draw.figures) {
     # plot depth v time
@@ -618,7 +618,7 @@ if (length(uctd.hdr) > 0) {
 
 ## Temperature v. Depth plot
 
-```{r TemperatureDepthPlot}
+```{r TemperatureDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (draw.figures) {
     # plot temperature v depth
@@ -649,7 +649,7 @@ if (length(uctd.hdr) > 0) {
 
 ## Salinity v. Depth plot
 
-```{r SalinityDepthPlot}
+```{r SalinityDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (draw.figures) {
     # plot salinity v depth
@@ -681,7 +681,7 @@ if (length(uctd.hdr) > 0) {
 
 ## Sound speed v. Depth plot
 
-```{r SoundSpeedDepthPlot}
+```{r SoundSpeedDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (draw.figures) {
     # plot sound speed v depth
@@ -818,7 +818,7 @@ if (draw.figures) {
 
 ## Temperature v. Depth plot
 
-```{r CtdTemperatureDepthPlot}
+```{r CtdTemperatureDepthPlot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
   if (draw.figures) {
     # plot temperature v depth
@@ -850,7 +850,7 @@ if (length(ctd.hdr) > 0) {
 
 ## Salinity v. Depth plot
 
-```{r CtdSalinityDepthPlot}
+```{r CtdSalinityDepthPlot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
   if (draw.figures) {
     # plot salinity v depth
@@ -881,7 +881,7 @@ if (length(ctd.hdr) > 0) {
 
 ## Sound speed v. Depth plot
 
-```{r CtdSoundSpeedDepthPlot}
+```{r CtdSoundSpeedDepthPlot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
   if (draw.figures) {
     # plot sound speed v depth
