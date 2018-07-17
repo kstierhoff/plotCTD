@@ -13,7 +13,7 @@ if (!require("pacman")) install.packages("pacman")
 
 # Install and load required packages from CRAN ---------------------------------
 pacman::p_load(tidyverse,xlsx,cowplot,devtools,knitr,shadowtext,plotly,sf,
-          DBI,stringr,gdata,forecast,here,rnaturalearth,viridis,DT,mapview)
+          DBI,stringr,gdata,forecast,lubridate,here,rnaturalearth,viridis,DT,mapview)
 
 # Install and load required packages from Github -------------------------------
 # surveyR
@@ -51,7 +51,7 @@ if (is.null(doc.type)) {
 
 # global knitr chunk options
 knitr::opts_chunk$set(
-  echo = F, warning = F, message = F, out.width = "100%",
+  echo = F, warning = F, message = F, out.width = "90%", out.height = "90%", 
   fig.align = "center", dev = "png", dev.args = list(type = "cairo"), dpi = 150
 )
 ```  
@@ -64,6 +64,11 @@ survey.end           <- "2018-09-23" # End of survey for ERDDAP vessel data quer
 erddap.vars          <- c("time,latitude,longitude,platformSpeed")
 erddap.classes       <- c("factor", "numeric", "numeric", "numeric")
 erddap.headers       <- c("time", "lat", "long", "SOG")
+
+# Define Leg breaks; e.g. "YYYY-MM-DD"
+leg.breaks <- as.numeric(as.POSIXct(c("2018-06-24", "2018-07-20", 
+                                      "2018-08-13", "2018-09-05"),
+                         format = "%F"))
 
 # CTD/UCTD header info
 uctd.prefix <- "1807RL_\\d{3}_UCTD\\d{3}"
@@ -262,26 +267,20 @@ if (length(uctd.hdr) > 0) {
     group_by(cast) %>% 
     summarise(
       time = round(sum(dt),0),
-      max.depth = round(min(Z),0))
-  
-  # add log info to summary"
-  uctd.summ <- uctd.summ %>% 
-    left_join(select(all.uctd.hdr, cast, cast.date, lat, long, SOG))
-  
-  # extract cast number from filename
-  uctd.summ$cast.num <- as.numeric(substr(levels(uctd.summ$cast),
-                                          nchar(levels(uctd.summ$cast)[1]) - 2,
-                                          nchar(levels(uctd.summ$cast)[1])))
+      max.depth = round(min(Z),0)) %>% 
+    left_join(select(all.uctd.hdr, cast, cast.date, lat, long, SOG)) %>% 
+    mutate(cast.num = as.numeric(substr(levels(cast),
+                                          nchar(levels(cast)[1]) - 2,
+                                          nchar(levels(cast)[1]))),
+           leg = paste("Leg", cut(as.numeric(cast.date), leg.breaks, labels = F)))
   
   # write table to CSV
   write.csv(uctd.summ, file = here("Output/cast_summary_uctd.csv"), quote = F, row.names = F)
   
   # add SOG to all.uctd
   all.uctd <- all.uctd %>% 
-    left_join(select(uctd.summ, cast, SOG))
-  
-  # create a survey factor for plotting
-  all.uctd$survey <- as.factor(survey.name)
+    left_join(select(uctd.summ, cast, SOG)) %>% 
+    mutate(survey = as.factor(survey.name))
   
   # summarize uctd casts for water classification
   uctd.class <- 
@@ -290,20 +289,22 @@ if (length(uctd.hdr) > 0) {
       min.T = min(T),
       min.S = min(S),
       max.T = max(T),
-      max.S = max(S),
-      class = "CC"
-    )
-  # assign classes based on salinity
-  uctd.class$class[uctd.class$min.S <= 31.4] <- "Plume"
-  uctd.class$class[uctd.class$min.S >= 33.4] <- "Spicy"
-  
+      max.S = max(S)
+    ) %>% 
+    # assign classes based on salinity
+    mutate(class = case_when(
+      min.S <= 31.4 ~ "Plume",
+      min.S >= 33.4 ~ "Spicy",
+      TRUE ~ "CC"))
+
   # add water mass to the summary table and cast data for plotting
   all.uctd <- all.uctd %>% 
-    left_join(uctd.class[ ,c("cast","class")])
+    left_join(uctd.class[ ,c("cast","class")]) %>% 
+    left_join(select(uctd.summ, cast, leg))
   
   uctd.summ <- uctd.summ %>% 
     left_join(uctd.class[ ,c("cast","class")]) %>% 
-    select(cast.num, cast, cast.date, lat, long, SOG, time, max.depth, class)
+    select(cast.num, cast, cast.date, lat, long, SOG, time, max.depth, class, leg)
 }
 ```
 
@@ -383,25 +384,26 @@ if (length(ctd.hdr) > 0) {
   }
   
   # combine header and nav data
-  all.ctd.hdr <- bind_cols(all.ctd.hdr,nav.match.ctd) %>% 
-    mutate(lag = difftime(cast.date, datetime))
+  all.ctd.hdr <- bind_cols(all.ctd.hdr, nav.match.ctd) %>% 
+    mutate(lag = difftime(cast.date, datetime),
+           order.occ = as.numeric(
+             substr(levels(cast),
+                    nchar(levels(cast)[1]) - 2,
+                    nchar(levels(cast)[1]))))
   
   # reorder all.ctd by cast and depth
-  all.ctd <- arrange(all.ctd,cast,desc(Z))
+  all.ctd <- arrange(all.ctd, cast, desc(Z)) %>% 
   # filter all.ctd to remove bad temperature and salinity 
-  all.ctd <- all.ctd %>% 
-    filter(T > min.T,T < max.T) %>% 
-    filter(S > min.S,S < max.S) %>% 
+    filter(T > min.T, T < max.T) %>% 
+    filter(S > min.S, S < max.S) %>%
     droplevels()
+
   # calculate max depth of each cast
   ctd.depth <- all.ctd %>% 
     group_by(cast) %>% 
     summarise(max.depth = min(Z))
   
   # extract cast number from filename
-  all.ctd.hdr$order.occ <- as.numeric(substr(levels(all.ctd.hdr$cast), 
-                                             nchar(levels(all.ctd.hdr$cast)[1]) - 2,
-                                             nchar(levels(all.ctd.hdr$cast)[1])))
   all.ctd.hdr <- all.ctd.hdr %>% 
     left_join(ctd.depth)
   
@@ -412,23 +414,23 @@ if (length(ctd.hdr) > 0) {
       min.T = min(T),
       min.S = min(S),
       max.T = max(T),
-      max.S = max(S),
-      class = "CC")
+      max.S = max(S)) %>% 
+    # assign classes based on salinity
+    mutate(class = case_when(
+      min.S <= 31.4 ~ "Plume",
+      min.S >= 33.4 ~ "Spicy",
+      TRUE ~ "CC"))
   
-  # assign classes based on salinity
-  ctd.class$class[ctd.class$min.S <= 31.4] <- "Plume"
-  ctd.class$class[ctd.class$min.S >= 33.4] <- "Spicy"
+
+  all.ctd.hdr <- all.ctd.hdr %>% 
+    left_join(select(ctd.class, cast, class)) %>% 
+    mutate(leg = paste("Leg", cut(as.numeric(cast.date), leg.breaks, labels = F))) %>% 
+    select(order.occ, cast, cast.date, lat, long, max.depth, class, leg)
   
   # add water mass to the summary table and cast data for plotting
   all.ctd     <- all.ctd %>% 
-    left_join(select(ctd.class,cast,class))
-  all.ctd.hdr <- all.ctd.hdr %>% 
-    left_join(select(ctd.class,cast,class))
-  
-  # reorder ctd.summ columns
-  all.ctd.hdr <- select(all.ctd.hdr, order.occ, cast, cast.date, 
-                        lat, long, max.depth, class)
-  
+    left_join(select(ctd.class, cast, class)) %>% 
+    left_join(select(all.ctd.hdr, cast, leg))  
   # write table to CSV
   write.csv(all.ctd.hdr, file = here("Output/cast_summary_ctd.csv"), 
             quote = F, row.names = F)
@@ -493,7 +495,7 @@ if (length(uctd.hdr) > 0) {
   
   # rename columns
   names(uctd.table) <- c("Cast","Filename","Date/time","Lat","Lon",
-                         "SOG (kt)","Time (s)","Depth (m)","Class")
+                         "SOG (kt)","Time (s)","Depth (m)","Class","Leg")
   # print table
   datatable(uctd.table)  
 } else {
@@ -512,7 +514,7 @@ nav.sf <- st_as_sf(nav, coords = c("long","lat"),crs = 4326) %>%
   summarise(do_union = F) %>% 
   st_cast("LINESTRING")
 
-uctd.sf <- st_as_sf(all.uctd.hdr, coords = c("long","lat"),crs = 4326) 
+uctd.sf <- st_as_sf(uctd.summ, coords = c("long","lat"),crs = 4326) 
 ctd.sf  <- st_as_sf(all.ctd.hdr, coords = c("long","lat"),crs = 4326)  
 ```
 
@@ -523,8 +525,8 @@ if (length(uctd.hdr) > 0) {
       # create main map using ggmap
       map.uctd <- base.map + 
         geom_path(data = nav, aes(long, lat)) +
-        geom_shadowtext(data = uctd.table, aes(x = Lon, y = Lat, label = Cast),
-                        size = 3, colour = "red", bg.color = "white", fontface = "bold") 
+        geom_shadowtext(data = uctd.table, aes(x = Lon, y = Lat, label = Cast, colour = Leg),
+                        size = 3, bg.color = "white", fontface = "bold") 
     } else {
       # create main map using ggmap
       map.uctd <- base.map + 
@@ -539,8 +541,7 @@ if (length(uctd.hdr) > 0) {
 }
 # Map casts
 mapview(nav.sf, color = "black",  alpha = 0.5, layer.name = "Vessel track", col.regions = "black") +
-  mapview(uctd.sf, color = "blue", cex = 4, layer.name = "UCTD Casts")
-# include_graphics(here("Figs/map_uctd.png")) 
+  mapview(uctd.sf, zcol = c("leg"), cex = 4, layer.name = "UCTD Casts", legend = T)
 ```  
 
 ## Descent rate v. Depth plot
@@ -560,11 +561,14 @@ if (length(uctd.hdr) > 0) {
                          breaks = seq(round(min(all.uctd$Z),digits = -1), 0, 25), 
                          expand = c(0, 0)) + 
       scale_colour_viridis("Vessel\nspeed (kt)\n", option = "plasma") +
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() + 
       theme(panel.grid.major     = element_line(size = 0.75),
             legend.position      =  c(0,1),
             legend.justification = c(0,1),
-            legend.background    = element_blank())
+            legend.background    = element_blank(),
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     # save plot
     ggsave(uctd.dZt, file = here("Figs/uctd_dZt_v_Z.png"))
   }
@@ -592,11 +596,14 @@ if (length(uctd.hdr) > 0) {
                          breaks = seq(round(min(all.uctd$Z),digits = -1), 0, 25),
                          expand = c(0,0)) + 
       scale_colour_viridis("Vessel\nspeed (kt)\n", option = "plasma") +
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() + 
       theme(panel.grid.major     = element_line(size = 0.75),
             legend.position      = c(1,1),
             legend.justification = c(1,1),
-            legend.background    = element_blank()) +
+            legend.background    = element_blank(),
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold")) +
       geom_smooth(data = all.uctd, se = F, aes(s, Z, group = survey), 
                   colour = 'black', linetype = 2)
     # save plot
@@ -624,9 +631,12 @@ if (length(uctd.hdr) > 0) {
       scale_y_continuous(limits = c(round(min(all.uctd$Z), digits = -1),0),
                          breaks = seq(round(min(all.uctd$Z), digits = -1), 0, 25), 
                          expand = c(0,0)) +
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() +
       theme(panel.grid.major = element_line(size = 0.75), 
-            legend.position = "none")
+            legend.position = "none",
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     # save plot
     ggsave(uctd.T, file = here("Figs/uctd_T_v_Z.png"))
   }
@@ -652,9 +662,12 @@ if (length(uctd.hdr) > 0) {
       scale_y_continuous(limits = c(round(min(all.uctd$Z), digits = -1), 0),
                          breaks = seq(round(min(all.uctd$Z), digits = -1), 0, 25), 
                          expand = c(0,0)) + 
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() +
       theme(panel.grid.major = element_line(size = 0.75), 
-            legend.position = "none")
+            legend.position = "none",
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     # save plot
     ggsave(uctd.S,file = here("Figs/uctd_S_v_Z.png"))
   }
@@ -681,8 +694,12 @@ if (length(uctd.hdr) > 0) {
       scale_y_continuous(limits = c(round(min(all.uctd$Z), digits = -1), 0),
                          breaks = seq(round(min(all.uctd$Z), digits = -1), 0, 25),
                          expand = c(0,0)) + 
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() +
-      theme(panel.grid.major = element_line(size = 0.75), legend.position = "none")
+      theme(panel.grid.major = element_line(size = 0.75), 
+            legend.position = "none",
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     # save plot
     ggsave(uctd.Sv, file = here("Figs/uctd_sV_v_Z.png"))
   }
@@ -713,7 +730,9 @@ if (length(uctd.hdr) > 0) {
       theme(panel.grid.major     = element_line(size = 0.75),
             legend.position      = c(0,0),
             legend.justification = c(0,0),
-            legend.background    = element_blank())
+            legend.background    = element_blank(),
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     # save plot
     ggsave(uctd.TS,file = here("Figs/uctd_S_v_T.png"))
     
@@ -751,7 +770,7 @@ if (length(ctd.hdr) > 0) {
     mutate(cast.date = format(cast.date,"%m/%d/%Y %H:%M:%S"))
   # rename columns
   names(ctd.table) <- c("Order Occupied", "Filename", "Date/time", 
-                        "Lat", "Lon", "Depth (m)", "Class")
+                        "Lat", "Lon", "Depth (m)", "Class", "Leg")
   # print table
   datatable(ctd.table)  
 } else {
@@ -784,8 +803,7 @@ if (draw.figures) {
 
 # Map casts
 mapview(nav.sf, color = "black",  alpha = 0.5, layer.name = "Vessel track", col.regions = "black") +
-  mapview(ctd.sf, color = "red", cex = 4, layer.name = "CTD Casts")
-# include_graphics(here("Figs/map_ctd.png")) 
+  mapview(ctd.sf, zcol = c("leg"), cex = 4, layer.name = "CTD Casts", legend = T)
 ```  
 
 ```{r CombineMaps}
@@ -813,9 +831,12 @@ if (length(ctd.hdr) > 0) {
       scale_y_continuous(limits = c(round(min(all.ctd$Z),digits = -1), 0),
                          breaks = seq(round(min(all.ctd$Z),digits = -1), 0, 25),
                          expand = c(0,0)) +
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() +
       theme(panel.grid.major = element_line(size = 0.75), 
-            legend.position = "none")
+            legend.position = "none",
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     
     # save plot
     ggsave(ctd.T, file = here("Figs/ctd_T_v_Z.png"))
@@ -842,9 +863,12 @@ if (length(ctd.hdr) > 0) {
       scale_y_continuous(limits = c(round(min(all.ctd$Z), digits = -1), 0),
                          breaks = seq(round(min(all.ctd$Z), digits = -1), 0, 25), 
                          expand = c(0,0)) + 
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() +
       theme(panel.grid.major = element_line(size = 0.75), 
-            legend.position = "none")
+            legend.position = "none",
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     # save plot
     ggsave(ctd.S,file = here("Figs/ctd_S_v_Z.png"))
   }
@@ -872,9 +896,12 @@ if (length(ctd.hdr) > 0) {
         limits = c(round(min(all.ctd$Z), digits = -1), 0),
         breaks = seq(round(min(all.ctd$Z), digits = -1), 0, 25),
         expand = c(0,0)) + 
+      facet_wrap(~leg, ncol = 2) +
       theme_bw() +
       theme(panel.grid.major = element_line(size = 0.75), 
-            legend.position = "none")
+            legend.position = "none",
+            strip.background.x = element_blank(),
+            strip.text.x = element_text(face = "bold"))
     # save plot
     ggsave(ctd.Sv, file = here("Figs/ctd_sV_v_T.png"))
   }
