@@ -151,7 +151,8 @@ if (get.nav) {
   nav <- filter(nav, is.nan(SOG) == F, SOG > 0, SOG < 12) %>%
     mutate(long = long - 360) %>%
     filter(between(lat, 30, 54), between(long, -135, -116)) %>%
-    mutate(datetime = as.POSIXct(time, format = "%FT%T"))
+    mutate(datetime = as.POSIXct(time, format = "%FT%T"),
+           leg = paste("Leg", cut(as.numeric(datetime), leg.breaks, labels = F)))
   
   # save results
   save(nav,file = here("Data/nav_data.Rdata"))
@@ -512,6 +513,7 @@ mapviewOptions(basemaps = c("Esri.OceanBasemap","Esri.WorldImagery","CartoDB.Pos
 
 # Create simple features
 nav.sf <- st_as_sf(nav, coords = c("long","lat"),crs = 4326) %>% 
+  group_by(leg) %>% 
   summarise(do_union = F) %>% 
   st_cast("LINESTRING")
 
@@ -541,8 +543,10 @@ if (length(uctd.hdr) > 0) {
   }
 }
 # Map casts
-mapview(nav.sf, color = "black",  alpha = 0.5, layer.name = "Vessel track", col.regions = "black") +
-  mapview(uctd.sf, zcol = c("leg"), cex = 4, layer.name = "UCTD Casts", legend = T)
+mapview(nav.sf, color = "black", alpha = 0.5, 
+        layer.name = "Vessel track", col.regions = "black") +
+  mapview(uctd.sf, zcol = c("leg"), cex = 4, 
+          layer.name = "UCTD Casts", legend = T)
 ```  
 
 ## Descent rate v. Depth plot
