@@ -12,8 +12,9 @@ output:
 if (!require("pacman")) install.packages("pacman")
 
 # Install and load required packages from CRAN ---------------------------------
-pacman::p_load(tidyverse,cowplot,devtools,knitr,shadowtext,plotly,sf,
-          DBI,stringr,gdata,forecast,lubridate,here,rnaturalearth,viridis,DT,mapview)
+pacman::p_load(tidyverse,cowplot,devtools,knitr,shadowtext,plotly,sf,fs,
+               DBI,stringr,gdata,forecast,lubridate,here,rnaturalearth,viridis,
+               DT,mapview)
 
 # Install and load required packages from Github -------------------------------
 # surveyR
