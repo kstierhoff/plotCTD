@@ -149,8 +149,10 @@ if (get.nav) {
   names(nav) <- erddap.headers
   
   # Filter to remove bad SST values
-  nav <- filter(nav, is.nan(SOG) == F, SOG > 0, SOG < 12) %>%
-    mutate(long = long - 360) %>%
+  nav <- nav %>% 
+    mutate(long = long - 360,
+           SOG = SOG * 1.94384) %>%
+    filter(is.nan(SOG) == F, SOG > 0, SOG < 15) %>%
     filter(between(lat, 30, 54), between(long, -135, -116)) %>%
     mutate(datetime = as.POSIXct(time, format = "%FT%T"),
            leg = paste("Leg", cut(as.numeric(datetime), leg.breaks, labels = F)))
