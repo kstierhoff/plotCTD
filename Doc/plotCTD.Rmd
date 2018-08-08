@@ -171,10 +171,6 @@ uctd.hdr <- list.files(here("Data/UCTD"),
                        pattern = paste(uctd.prefix, ".asc", sep = ""), 
                        full.names = T)
 
-# uctd.files <- as.factor(gsub(".asc", "", 
-#                              list.files(here("Data/UCTD"),
-#                                         paste(uctd.prefix, ".asc", sep = ""))))
-
 # Create empty figure if no UCTD casts present
 if (length(uctd.hdr) == 0) {
   df <- data.frame()
@@ -333,10 +329,6 @@ ctd.hdr <- list.files(here("Data/CTD"),
                       pattern = paste(ctd.prefix,".hdr", sep = ""),
                       full.names = T)
 
-# ctd.files <- as.factor(gsub(".hdr", "", 
-#                             list.files(here("Data/CTD"),
-#                                        pattern = paste(ctd.prefix,".hdr", sep = ""))))
-
 # Create empty figure if no CTD casts present
 if (length(ctd.hdr) == 0) {
   df <- data.frame()
@@ -357,7 +349,6 @@ if (length(ctd.hdr) == 0) {
       # create a factor for the cast name
       cast.file <- tail(str_split(i, "/")[[1]], n = 1)
       cast <- str_replace(cast.file, ".hdr","")
-      # cast <- ctd.files[i]
       # scan header for text extraction
       txt <- readLines(i)
       # extract cast date as POSIXct
