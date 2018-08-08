@@ -171,9 +171,9 @@ uctd.hdr <- list.files(here("Data/UCTD"),
                        pattern = paste(uctd.prefix, ".asc", sep = ""), 
                        full.names = T)
 
-uctd.files <- as.factor(gsub(".asc", "", 
-                             list.files(here("Data/UCTD"),
-                                        paste(uctd.prefix, ".asc", sep = ""))))
+# uctd.files <- as.factor(gsub(".asc", "", 
+#                              list.files(here("Data/UCTD"),
+#                                         paste(uctd.prefix, ".asc", sep = ""))))
 
 # Create empty figure if no UCTD casts present
 if (length(uctd.hdr) == 0) {
@@ -189,11 +189,9 @@ if (length(uctd.hdr) == 0) {
   if (process.files) {
     # Create a data frame for header info  
     all.uctd.hdr <- data.frame()
-    for (i in 1:length(uctd.hdr)) {
-      # create a factor for the cast name
-      cast <- uctd.files[i]
+    for (i in uctd.hdr) {
       # scan header for text extraction
-      txt <- readLines(uctd.hdr[i])
+      txt <- readLines(i)
       # extract cast date as POSIXct
       cast.date  <- as.POSIXct(str_extract(
         unlist(str_extract_all(txt, pattern = '\\*Cast[\\s\\S]*end')),
@@ -208,9 +206,12 @@ if (length(uctd.hdr) == 0) {
       # extract probe serial number
       sn <- as.numeric(str_extract(
         unlist(str_extract_all(txt, pattern = '\\*SerialNumber=\\d{8}'))[1],"\\d{8}"))
+      # create a factor for the cast name
+      cast.file <- tail(str_split(i, "/")[[1]], n = 1)
+      cast <- str_replace(cast.file, ".asc","")
       # assemble a temporary data frame and add to all.uctd.hdr
-      temp.df <- data.frame(cast,cast.date,sn)
-      all.uctd.hdr <- bind_rows(all.uctd.hdr,temp.df)
+      all.uctd.hdr <- bind_rows(all.uctd.hdr,
+                                data.frame(cast, cast.date, sn))
     }
     
     # Process UCTD cast files #####
@@ -221,9 +222,9 @@ if (length(uctd.hdr) == 0) {
     
     # create a data frame for storing results
     all.uctd <- data.frame()
-    for (i in 1:length(uctd.proc)) {
+    for (i in uctd.proc) {
       # read the ucast and rename columns
-      ucast <- read.table(uctd.proc[i],header = T)
+      ucast <- read.table(i, header = T)
       # names(ucast) <- c("scan","C","T","P","Z","dZt","S","sV","flag")
       names(ucast) <- c("scan","C","T","P","Z","S","Sv","avgsVCM","Dens","Flag")
       # calculate time (s) from scan (scan rate is 16 Hz)
@@ -240,16 +241,18 @@ if (length(uctd.hdr) == 0) {
       # make depth negative
       ucast$Z <- -ucast$Z
       # add ucast name to df
-      ucast$cast <- uctd.files[i]
+      cast.file <- tail(str_split(i, "/")[[1]], n = 1)
+      ucast$cast <- str_replace(cast.file, "_processed.asc","")
       # add to resultsConductivity Depth Plot
       all.uctd <- bind_rows(all.uctd,ucast)
     }
     # Format results
-    all.uctd <- arrange(all.uctd,cast,scan) %>% 
+    all.uctd <- arrange(all.uctd, cast, scan) %>% 
       filter(S < max.S, S > min.S) # Remove bad salinity data
     
     # save results 
-    save(all.uctd, all.uctd.hdr, uctd.hdr, uctd.files, file = here("Data/uctd_data.Rdata"))
+    save(all.uctd, all.uctd.hdr, uctd.hdr, 
+         file = here("Data/uctd_data.Rdata"))
   } else {
     load(here("Data/uctd_data.Rdata"))
   }
@@ -274,16 +277,8 @@ if (length(uctd.hdr) == 0) {
       time = round(sum(dt),0),
       max.depth = round(min(Z),0))
   
-  # Remove unprocessed casts from the summary
-  uctd.hdr.missing <- all.uctd.hdr %>% 
-    filter(!cast %in% uctd.summ$cast)
-  
-  # write table to CSV
-  write.csv(uctd.hdr.missing, file = here("Output/unprocessed_uctd.csv"), quote = F, row.names = F)
-  
   # summarize UCTD cast results
   uctd.summ <- uctd.summ %>%
-    filter(!cast %in% uctd.hdr.missing$cast) %>%
     left_join(select(all.uctd.hdr, cast, cast.date, lat, long, SOG)) %>%
     arrange(cast.date) %>%
     mutate(cast.num = seq(1, n()),
@@ -319,7 +314,16 @@ if (length(uctd.hdr) == 0) {
   
   uctd.summ <- uctd.summ %>% 
     left_join(uctd.class[ ,c("cast","class")]) %>% 
-    select(cast.num, cast, cast.date, lat, long, SOG, time, max.depth, class, leg)
+    select(cast.num, cast, cast.date, lat, long, SOG, 
+           time, max.depth, class, leg)
+  
+  # Remove unprocessed casts from the summary
+  uctd.missing <- all.uctd.hdr %>% 
+    filter(!cast %in% all.uctd$cast)
+  
+  # write table to CSV
+  write.csv(uctd.missing, file = here("Output/unprocessed_uctd.csv"), 
+            quote = F, row.names = F)
 }
 ```
 
@@ -329,9 +333,9 @@ ctd.hdr <- list.files(here("Data/CTD"),
                       pattern = paste(ctd.prefix,".hdr", sep = ""),
                       full.names = T)
 
-ctd.files <- as.factor(gsub(".hdr", "", 
-                            list.files(here("Data/CTD"),
-                                       pattern = paste(ctd.prefix,".hdr", sep = ""))))
+# ctd.files <- as.factor(gsub(".hdr", "", 
+#                             list.files(here("Data/CTD"),
+#                                        pattern = paste(ctd.prefix,".hdr", sep = ""))))
 
 # Create empty figure if no CTD casts present
 if (length(ctd.hdr) == 0) {
@@ -349,11 +353,13 @@ if (length(ctd.hdr) == 0) {
     # Extract the deployment time and other info from the header file
     # Create a data frame for header info
     all.ctd.hdr <- data.frame()
-    for (i in 1:length(ctd.hdr)) {
+    for (i in ctd.hdr) {
       # create a factor for the cast name
-      cast <- ctd.files[i]
+      cast.file <- tail(str_split(i, "/")[[1]], n = 1)
+      cast <- str_replace(cast.file, ".hdr","")
+      # cast <- ctd.files[i]
       # scan header for text extraction
-      txt <- readLines(ctd.hdr[i])
+      txt <- readLines(i)
       # extract cast date as POSIXct
       cast.date  <- as.POSIXct(str_extract(
         unlist(str_extract_all(txt, pattern = '\\* NMEA UTC \\(Time\\).*')),
@@ -366,24 +372,26 @@ if (length(ctd.hdr) == 0) {
           format = "%d %b %Y %H:%M:%S")
       }
       # assemble a temporary data frame and add to all.uctd.hdr
-      temp.df <- data.frame(cast,cast.date)
-      all.ctd.hdr <- bind_rows(all.ctd.hdr,temp.df)
+      all.ctd.hdr <- bind_rows(all.ctd.hdr,
+                               data.frame(cast, cast.date))
     }
     
     # list processed CTD ASCII files
     ctd.proc <- list.files(here("Data/CTD"),
                            pattern = paste(ctd.prefix,"_processed.asc", sep = ""),
                            full.names = T)
+    
     # create a data frame for storing results
     all.ctd <- data.frame()
-    for (i in 1:length(ctd.proc)) {
+    for (i in ctd.proc) {
       # read the ucast and rename columns
-      cast <- read.table(ctd.proc[i], header = T)
+      cast <- read.table(i, header = T)
       names(cast) <- c("P","T","C","Z","S","Sv","avgsVCM","Dens","Flag")
       # make depth negative
       cast$Z <- -cast$Z
-      # add ucast name to df
-      cast$cast <- ctd.files[i]
+      # add cast name to df
+      cast.file <- tail(str_split(i, "/")[[1]], n = 1)
+      cast$cast <- str_replace(cast.file, "_processed.asc","")
       # add to resultsConductivity Depth Plot
       all.ctd <- bind_rows(all.ctd, cast)
     }
@@ -402,12 +410,11 @@ if (length(ctd.hdr) == 0) {
   }
   
   # combine header and nav data
-  all.ctd.hdr <- bind_cols(all.ctd.hdr, nav.match.ctd) %>% 
-    mutate(lag = difftime(cast.date, datetime),
-           order.occ = as.numeric(
-             substr(levels(cast),
-                    nchar(levels(cast)[1]) - 2,
-                    nchar(levels(cast)[1]))))
+  all.ctd.hdr <- all.ctd.hdr %>% 
+    bind_cols(nav.match.ctd) %>% 
+    mutate(
+      cast.num = seq(1, n()),
+      lag = difftime(cast.date, datetime))
   
   # reorder all.ctd by cast and depth
   all.ctd <- arrange(all.ctd, cast, desc(Z)) %>% 
@@ -442,14 +449,23 @@ if (length(ctd.hdr) == 0) {
   all.ctd.hdr <- all.ctd.hdr %>% 
     left_join(select(ctd.class, cast, class)) %>% 
     mutate(leg = paste("Leg", cut(as.numeric(cast.date), leg.breaks, labels = F))) %>% 
-    select(order.occ, cast, cast.date, lat, long, max.depth, class, leg)
+    select(cast.num, cast, cast.date, lat, long, max.depth, class, leg)
   
   # add water mass to the summary table and cast data for plotting
   all.ctd     <- all.ctd %>% 
     left_join(select(ctd.class, cast, class)) %>% 
     left_join(select(all.ctd.hdr, cast, leg))  
+  
   # write table to CSV
   write.csv(all.ctd.hdr, file = here("Output/cast_summary_ctd.csv"), 
+            quote = F, row.names = F)
+  
+  # Remove unprocessed casts from the summary
+  ctd.missing <- all.ctd.hdr %>% 
+    filter(!cast %in% all.ctd$cast)
+  
+  # write table to CSV
+  write.csv(ctd.missing, file = here("Output/unprocessed_ctd.csv"), 
             quote = F, row.names = F)
 }
 ```
@@ -517,6 +533,24 @@ if (length(uctd.hdr) > 0) {
   datatable(uctd.table)  
 } else {
   cat("No UCTD casts processed.")
+}
+```  
+
+## Unprocessed UCTD casts  
+List of UCTD casts not yet processed. 
+
+```{r UCTDMissingCasts, include=TRUE}
+if (nrow(uctd.missing) > 0) {
+  # make a copy of uctd.summ
+  uctd.tbl.missing <- uctd.missing %>%
+    arrange(cast.date) %>%
+    mutate(cast.date = format(cast.date,"%m/%d/%Y %H:%M:%S")) %>% 
+    select(Cast = cast, Date = cast.date, Leg = leg)
+  
+  # print table
+  datatable(uctd.tbl.missing)  
+} else {
+  cat("All UCTD casts have been processed.")
 }
 ```  
 
@@ -825,6 +859,24 @@ if (draw.figures) {
 mapview(nav.sf, color = "black",  alpha = 0.5, layer.name = "Vessel track", col.regions = "black") +
   mapview(ctd.sf, zcol = c("leg"), cex = 4, layer.name = "CTD Casts", legend = T)
 ```  
+
+## Unprocessed CTD casts  
+List of CTD casts not yet processed. 
+
+```{r CTDMissingCasts, include=TRUE}
+if (nrow(ctd.missing) > 0) {
+  # make a copy of uctd.summ
+  ctd.tbl.missing <- ctd.missing %>%
+    arrange(cast.date) %>%
+    mutate(cast.date = format(cast.date,"%m/%d/%Y %H:%M:%S")) %>% 
+    select(Cast = cast, Date = cast.date, Leg = leg)
+  
+  # print table
+  datatable(ctd.tbl.missing)  
+} else {
+  cat("All UCTD casts have been processed.")
+}
+```
 
 ```{r CombineMaps}
 if (draw.figures) {
