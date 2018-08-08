@@ -182,10 +182,10 @@ if (length(uctd.hdr) == 0) {
     xlim(0,10) + ylim(0,10) + 
     annotate('text', 5, 5, label = 'No UCTD Casts', size = 6, fontface = 'bold') +
     theme_bw()  
+  
   ggsave(ctd.empty, filename = here("Figs/uctd_missing.png"))
-}
-
-if (length(uctd.hdr) > 0) {
+  
+} else {
   if (process.files) {
     # Create a data frame for header info  
     all.uctd.hdr <- data.frame()
@@ -244,7 +244,10 @@ if (length(uctd.hdr) > 0) {
       # add to resultsConductivity Depth Plot
       all.uctd <- bind_rows(all.uctd,ucast)
     }
-    all.uctd <- arrange(all.uctd,cast,scan) 
+    # Format results
+    all.uctd <- arrange(all.uctd,cast,scan) %>% 
+      filter(S < max.S, S > min.S) # Remove bad salinity data
+    
     # save results 
     save(all.uctd, all.uctd.hdr, uctd.hdr, uctd.files, file = here("Data/uctd_data.Rdata"))
   } else {
@@ -264,19 +267,26 @@ if (length(uctd.hdr) > 0) {
     mutate(lag = difftime(cast.date, datetime)) %>% 
     arrange(cast.date)
   
-  # filter for bad salinity values
-  all.uctd <- filter(all.uctd, S < max.S, S > min.S)
-  
   # summarize UCTD cast results
   uctd.summ <- all.uctd %>% 
     group_by(cast) %>% 
     summarise(
       time = round(sum(dt),0),
-      max.depth = round(min(Z),0)) %>% 
-    left_join(select(all.uctd.hdr, cast, cast.date, lat, long, SOG)) %>% 
-    mutate(cast.num = as.numeric(substr(levels(cast),
-                                          nchar(levels(cast)[1]) - 2,
-                                          nchar(levels(cast)[1]))),
+      max.depth = round(min(Z),0))
+  
+  # Remove unprocessed casts from the summary
+  uctd.hdr.missing <- all.uctd.hdr %>% 
+    filter(!cast %in% uctd.summ$cast)
+  
+  # write table to CSV
+  write.csv(uctd.hdr.missing, file = here("Output/unprocessed_uctd.csv"), quote = F, row.names = F)
+  
+  # summarize UCTD cast results
+  uctd.summ <- uctd.summ %>%
+    filter(!cast %in% uctd.hdr.missing$cast) %>%
+    left_join(select(all.uctd.hdr, cast, cast.date, lat, long, SOG)) %>%
+    arrange(cast.date) %>%
+    mutate(cast.num = seq(1, n()),
            leg = paste("Leg", cut(as.numeric(cast.date), leg.breaks, labels = F)))
   
   # write table to CSV
@@ -318,6 +328,7 @@ if (length(uctd.hdr) > 0) {
 ctd.hdr <- list.files(here("Data/CTD"),
                       pattern = paste(ctd.prefix,".hdr", sep = ""),
                       full.names = T)
+
 ctd.files <- as.factor(gsub(".hdr", "", 
                             list.files(here("Data/CTD"),
                                        pattern = paste(ctd.prefix,".hdr", sep = ""))))
@@ -325,14 +336,15 @@ ctd.files <- as.factor(gsub(".hdr", "",
 # Create empty figure if no CTD casts present
 if (length(ctd.hdr) == 0) {
   df <- data.frame()
+  
   ctd.empty <- ggplot(df) + geom_point() + 
     xlim(0,10) + ylim(0,10) + 
     annotate('text', 5, 5, label = 'No CTD Casts', size = 6, fontface = 'bold') +
     theme_bw()  
+  
   ggsave(ctd.empty, filename = here("Figs/ctd_missing.png"))
-}
-
-if (length(ctd.hdr) > 0) {
+  
+} else {
   if (process.files) {
     # Extract the deployment time and other info from the header file
     # Create a data frame for header info
@@ -375,6 +387,7 @@ if (length(ctd.hdr) > 0) {
       # add to resultsConductivity Depth Plot
       all.ctd <- bind_rows(all.ctd, cast)
     }
+    
     # save results
     save(all.ctd, all.ctd.hdr, file = here("Data/ctd_data.Rdata"))
   } else {
@@ -426,7 +439,6 @@ if (length(ctd.hdr) > 0) {
       min.S >= 33.4 ~ "Spicy",
       TRUE ~ "CC"))
   
-
   all.ctd.hdr <- all.ctd.hdr %>% 
     left_join(select(ctd.class, cast, class)) %>% 
     mutate(leg = paste("Leg", cut(as.numeric(cast.date), leg.breaks, labels = F))) %>% 
