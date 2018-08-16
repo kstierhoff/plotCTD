@@ -75,6 +75,8 @@ leg.breaks <- as.numeric(as.POSIXct(c("2018-06-24", "2018-07-20",
 uctd.prefix <- "1807RL_\\d{3}_UCTD\\d{3}"
 ctd.prefix  <- "1807\\d{3}"
 
+exclude.ctd <- c("1807RL_056_UCTD131")
+
 # Define map height and width (inches) for saved images
 map.height <- 10 # e.g., 8 for spring surveys, 10 for summer surveys
 map.width  <-  6 # e.g., 8 for spring surveys, 6 for summer surveys
@@ -317,7 +319,11 @@ if (length(uctd.hdr) == 0) {
   uctd.missing <- all.uctd.hdr %>% 
     filter(!cast %in% all.uctd$cast)
   
-  # write table to CSV
+  # Exclude bad casts
+  all.uctd <- all.uctd %>%
+    filter(!cast %in% exclude.ctd)
+  
+  # Write table to CSV
   write.csv(uctd.missing, file = here("Output/unprocessed_uctd.csv"), 
             quote = F, row.names = F)
 }
@@ -454,6 +460,10 @@ if (length(ctd.hdr) == 0) {
   # Remove unprocessed casts from the summary
   ctd.missing <- all.ctd.hdr %>% 
     filter(!cast %in% all.ctd$cast)
+  
+  # Exclude bad casts
+  all.ctd <- all.ctd %>%
+    filter(!cast %in% exclude.ctd)
   
   # write table to CSV
   write.csv(ctd.missing, file = here("Output/unprocessed_ctd.csv"), 
