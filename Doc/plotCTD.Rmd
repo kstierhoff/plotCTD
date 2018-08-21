@@ -35,6 +35,8 @@ survey.name   <- "1807RL"
 survey.vessel <- "FSV Reuben Lasker" 
 survey.dir    <- "C:/SURVEY/1807RL"
 data.dir      <- "C:/SURVEY/1807RL/DATA"
+survey.lat    <- c(31,51)
+survey.long   <- c(-132,-116)
 
 # Control script behavior
 copy.files      <- T # copy data files from data to plotCTD directory
@@ -153,11 +155,13 @@ if (get.nav) {
   # Filter to remove bad SST values
   nav <- nav %>% 
     mutate(long = long - 360,
-           SOG = SOG * 1.94384) %>%
-    filter(is.nan(SOG) == F, SOG > 0, SOG < 15) %>%
-    filter(between(lat, 30, 54), between(long, -135, -116)) %>%
-    mutate(datetime = as.POSIXct(time, format = "%FT%T"),
-           leg = paste("Leg", cut(as.numeric(datetime), leg.breaks, labels = F)))
+           SOG = SOG * 1.94384,
+           datetime = as.POSIXct(time, format = "%FT%T"),
+           leg = paste("Leg", cut(as.numeric(datetime), 
+                                  leg.breaks, labels = F))) %>%
+    filter(is.nan(SOG) == F, SOG > 0, SOG < 15,
+           between(lat, min(survey.lat), max(survey.lat)), 
+           between(long, min(survey.long), max(survey.long))) 
   
   # save results
   save(nav,file = here("Data/nav_data.Rdata"))
