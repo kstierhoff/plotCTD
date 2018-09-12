@@ -70,7 +70,8 @@ erddap.headers       <- c("time", "lat", "long", "SOG")
 
 # Define Leg breaks; e.g. "YYYY-MM-DD"
 leg.breaks <- as.numeric(as.POSIXct(c("2018-06-24", "2018-07-20", 
-                                      "2018-08-13", "2018-09-05"),
+                                      "2018-08-13", "2018-09-05",
+                                      "2018-09-24"),
                          format = "%F"))
 
 # CTD/UCTD header info
