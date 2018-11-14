@@ -3,8 +3,9 @@ title: "CTD and UCTD casts"
 author: "Kevin L. Stierhoff"
 date: '`r format(Sys.time(), format = "%F %T", tz = "GMT", usetz = T)`'
 output:
-  html_document:
-    toc: yes
+  bookdown::html_document2:
+    toc: no
+    toc_float: no
 ---
 
 ```{r SetUp,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
@@ -14,7 +15,7 @@ if (!require("pacman")) install.packages("pacman")
 # Install and load required packages from CRAN ---------------------------------
 pacman::p_load(tidyverse,cowplot,devtools,knitr,shadowtext,plotly,sf,fs,
                DBI,stringr,gdata,forecast,lubridate,here,rnaturalearth,viridis,
-               DT,mapview)
+               DT,mapview,bookdown)
 
 # Install and load required packages from Github -------------------------------
 # surveyR
@@ -39,12 +40,12 @@ survey.lat    <- c(31,51)
 survey.long   <- c(-132,-116)
 
 # Control script behavior
-copy.files      <- T # copy data files from data to plotCTD directory
-overwrite.files <- T # overwrite existing files
-get.nav         <- T # download nav data from ERDDAP
-process.files   <- T # process CTD/UCTD files
+copy.files      <- F # copy data files from data to plotCTD directory
+overwrite.files <- F # overwrite existing files
+get.nav         <- F # download nav data from ERDDAP
+process.files   <- F # process CTD/UCTD files
 draw.figures    <- T # create new figures
-get.map         <- T # download map from rnaturalearth
+get.map         <- F # download map from rnaturalearth
 
 # determines method of table generation for best formatting
 doc.type <- knitr::opts_knit$get("rmarkdown.pandoc.to")
