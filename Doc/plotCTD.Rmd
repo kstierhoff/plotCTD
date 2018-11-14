@@ -2,10 +2,7 @@
 title: "CTD and UCTD casts"
 author: "Kevin L. Stierhoff"
 date: '`r format(Sys.time(), format = "%F %T", tz = "GMT", usetz = T)`'
-output:
-  bookdown::html_document2:
-    toc: no
-    toc_float: no
+output: html_document
 ---
 
 ```{r SetUp,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
@@ -673,7 +670,7 @@ if (length(uctd.hdr) > 0) {
   ggplotly(uctd.Z)
   # include_graphics(here("Figs/uctd_Z_v_time.png")) 
 } else {
-  include_graphics(here("Figs/uctd_missing.png"))
+  include_graphics(here("Figs/uctd_Z_v_time.png"))
 }
 ```  
 
