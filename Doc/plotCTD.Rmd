@@ -44,7 +44,7 @@ copy.files      <- F # copy data files from data to plotCTD directory
 overwrite.files <- F # overwrite existing files
 get.nav         <- F # download nav data from ERDDAP
 process.files   <- F # process CTD/UCTD files
-draw.figures    <- T # create new figures
+save.figs       <- T # create new figures
 get.map         <- F # download map from rnaturalearth
 
 # determines method of table generation for best formatting
@@ -579,7 +579,7 @@ ctd.sf  <- st_as_sf(all.ctd.hdr, coords = c("long","lat"),crs = 4326)
 
 ```{r AllUctdMap}
 if (length(uctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     if (length(uctd.table) > 0) {
       # create main map using ggmap
       map.uctd <- base.map + 
@@ -610,7 +610,7 @@ Descent rate of the UCTD by depth and vessel speed.
 
 ```{r DescentRateDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot descent rate v depth
     uctd.dZt <- ggplot(data = all.uctd, aes(dZt, Z, group = cast, colour = SOG)) + 
       geom_path(alpha = 0.75) +
@@ -645,7 +645,7 @@ The dashed line represent the Loess-smoothed depth profiles.
 
 ```{r DepthTimePlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot depth v time
     uctd.Z <- ggplot(data = all.uctd, aes(s, Z, group = factor(cast), colour = SOG)) + 
       geom_path(alpha = 0.75) +
@@ -681,7 +681,7 @@ if (length(uctd.hdr) > 0) {
 
 ```{r TemperatureDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot temperature v depth
     uctd.T <- ggplot(data = all.uctd, aes(T, Z, group = cast, colour = factor(cast))) + 
       geom_path(alpha = 0.75) +
@@ -712,7 +712,7 @@ if (length(uctd.hdr) > 0) {
 
 ```{r SalinityDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot salinity v depth
     uctd.S <- ggplot(data = all.uctd, aes(S, Z, group = cast, colour = factor(cast))) + 
       geom_path(alpha = 0.75) +
@@ -744,7 +744,7 @@ if (length(uctd.hdr) > 0) {
 
 ```{r SoundSpeedDepthPlot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot sound speed v depth
     uctd.Sv <- ggplot(data = all.uctd, aes(Sv, Z, group = cast, colour = factor(cast))) + 
       geom_path(alpha = 0.75) +
@@ -776,7 +776,7 @@ Temperature-salinity plot for all UCTD casts (left) and the location of UCTD cas
 
 ```{r UCTDTsPlot}
 if (length(uctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot salinity v depth
     uctd.TS <- ggplot(data = all.uctd, aes(S, T, group = cast, colour = factor(class))) + 
       geom_point(alpha = 0.5, size = 2) +
@@ -843,7 +843,7 @@ if (length(ctd.hdr) > 0) {
 Location of underway CTD (red numbers) casts. Gray numbers indicate acoustic transect line numbers from the survey instructions. CTD cast numbers correspond to those in the previous table.  
 
 ```{r AllCtdMap}
-if (draw.figures) {
+if (save.figs) {
   if (length(ctd.hdr) > 0) {
     # create main map using ggmap
     map.ctd <- base.map + 
@@ -886,7 +886,7 @@ if (nrow(ctd.missing) > 0) {
 ```
 
 ```{r CombineMaps}
-if (draw.figures) {
+if (save.figs) {
   # Combine maps
   both.maps <- plot_grid(map.uctd, map.ctd, align = "h", labels = c("UCTD", "CTD"))
   # save plot
@@ -899,7 +899,7 @@ if (draw.figures) {
 
 ```{r CtdTemperatureDepthPlot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot temperature v depth
     ctd.T <- ggplot(data = all.ctd, aes(T, Z, group = cast, colour = factor(cast))) + 
       geom_path(alpha = 0.75) +
@@ -931,7 +931,7 @@ if (length(ctd.hdr) > 0) {
 
 ```{r CtdSalinityDepthPlot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot salinity v depth
     ctd.S <- ggplot(data = all.ctd, aes(S, Z, group = cast, colour = factor(cast))) + 
       geom_path(alpha = 0.75) +
@@ -962,7 +962,7 @@ if (length(ctd.hdr) > 0) {
 
 ```{r CtdSoundSpeedDepthPlot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot sound speed v depth
     ctd.Sv <- ggplot(data = all.ctd, aes(Sv, Z, group = cast, colour = factor(cast))) + 
       geom_path(alpha = 0.75) +
@@ -996,7 +996,7 @@ Temperature-salinity plot for all CTD casts (left) and the location of CTD casts
 
 ```{r CTDTsPlot}
 if (length(ctd.hdr) > 0) {
-  if (draw.figures) {
+  if (save.figs) {
     # plot salinity v depth
     ctd.TS <- ggplot(all.ctd, aes(S, T, group = cast, colour = factor(class))) + 
       geom_point(alpha = 0.5, size = 2) +
