@@ -5,14 +5,14 @@ date: '`r format(Sys.time(), format = "%F %T", tz = "GMT", usetz = T)`'
 output: html_document
 ---
 
-```{r SetUp,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
+```{r setup,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
 # Install and load pacman (library management package)
 if (!require("pacman")) install.packages("pacman")
 
 # Install and load required packages from CRAN ---------------------------------
 pacman::p_load(tidyverse,cowplot,devtools,knitr,shadowtext,plotly,sf,fs,
                DBI,stringr,gdata,forecast,lubridate,here,rnaturalearth,viridis,
-               DT,mapview,bookdown)
+               DT,mapview,bookdown,ggspatial)
 
 # Install and load required packages from Github -------------------------------
 # surveyR
@@ -56,45 +56,46 @@ prj.settings <- settings.files[str_detect(settings.files, paste(prj.name, ".R", 
 source(here("Doc/settings", prj.settings))
 ```
 
-```{r CopyFiles, include=F}
+```{r copy-files, include=F}
 if (copy.files) {
-  # Copy UCTD data #####
-  # location of header files on survey directory
+  # Copy UCTD data ------------------------------------
+  # Location of header files on survey directory
   uctd.hdr <- list.files(file.path(data.dir, "UCTD"), 
                          pattern = paste(uctd.prefix, ".asc", sep = ""), 
                          full.names = T)
-  # copy files to plotCTD directory
+  
+  # Copy files to plotCTD directory
   file.copy(uctd.hdr, here("Data/UCTD"), overwrite = overwrite.files)
   
-  # location of processed UCTD files on survey directory
+  # Location of processed UCTD files on survey directory
   uctd.proc <- list.files(file.path(data.dir, "UCTD"), 
                           pattern = paste(uctd.prefix,"_processed.asc", sep = ""),
                           full.names = T)
   
-  # copy files to plotCTD directory
+  # Copy files to plotCTD directory
   file.copy(uctd.proc, here("Data/UCTD"), overwrite = overwrite.files)
   
-  # Copy CTD data #####
-  # list raw CTD ASCII files
+  # Copy CTD data -------------------------------------
+  # List raw CTD ASCII files
   ctd.hdr <- list.files(file.path(data.dir, "CTD"),
                         pattern = paste(ctd.prefix,".hdr", sep = ""),
                         full.names = T)
   
-  # copy files to plotCTD directory
+  # Copy files to plotCTD directory
   file.copy(ctd.hdr, here("Data/CTD"), overwrite = overwrite.files)
   
-  # location of processed CTD files on survey directory
+  # Location of processed CTD files on survey directory
   ctd.proc <- list.files(file.path(data.dir, "CTD"),
                         pattern = paste(ctd.prefix,"_processed.asc", sep = ""),
                         full.names = T)
   
-  # copy files to plotCTD directory
+  # Copy files to plotCTD directory
   file.copy(ctd.proc, here("Data/CTD"),
             overwrite = overwrite.files)
 }
 ```
 
-```{r ProcessNav}
+```{r process-nav}
 if (get.nav) {
   # Generate ERDDAP URL
   dataURL <- URLencode(paste("http://coastwatch.pfeg.noaa.gov/erddap/tabledap/fsuNoaaShip",
@@ -239,9 +240,9 @@ if (length(uctd.hdr) == 0) {
     ) %>% 
     # Assign classes based on salinity
     mutate(class = case_when(
-      min.S <= 31.4 ~ "Plume",
-      min.S >= 33.4 ~ "Spicy",
-      TRUE ~ "CC"))
+      min.S <= 31.4 ~ "Type 1",
+      min.S >= 33.4 ~ "Type 2",
+      TRUE ~ "Type 3"))
 
   # Add water mass to the summary table and cast data for plotting
   all.uctd.casts <- all.uctd.casts %>% 
@@ -267,7 +268,7 @@ if (length(uctd.hdr) == 0) {
 }
 ```
 
-```{r ProcessCTDCasts}
+```{r process-ctd}
 # List raw UCTD ASCII files
 ctd.hdr <- list.files(here("Data/CTD"),
                       pattern = paste(ctd.prefix,".hdr", sep = ""),
@@ -356,9 +357,9 @@ if (length(ctd.hdr) == 0) {
       max.S = max(S)) %>% 
     # assign classes based on salinity
     mutate(class = case_when(
-      min.S <= 31.4 ~ "Plume",
-      min.S >= 33.4 ~ "Spicy",
-      TRUE ~ "CC"))
+      min.S <= 31.4 ~ "Type 1",
+      min.S >= 33.4 ~ "Type 2",
+      TRUE ~ "Type 3"))
   
   all.ctd.hdr <- all.ctd.hdr %>% 
     left_join(select(ctd.class, cast, class)) %>% 
@@ -388,7 +389,7 @@ if (length(ctd.hdr) == 0) {
 }
 ```
 
-```{r CreateBaseMap}
+```{r create-basemap}
 # Get map data
 if (get.map) {
   # Import landmarks ---------------------------
@@ -419,11 +420,13 @@ if (get.map) {
 
 # Get map boundaries from nav data
 map.bounds <- nav.sf %>%
-  sf::st_transform(crs = crs.proj) %>%
-  sf::st_bbox()
+  st_transform(crs = crs.proj) %>%
+  st_bbox()
 
 # Create base map
-base.map <- get_basemap(nav.sf, states, countries, locations, bathy, crs = crs.proj)
+base.map <- get_basemap(nav.sf, states, countries, locations, bathy, crs = crs.proj) + 
+  # Add scalebar
+  annotation_scale(style = "ticks", location = "br", height = unit(0.15, "cm"))
 
 # Save plot
 ggsave(base.map, filename = here("Figs/basemap.png"), 
@@ -434,7 +437,7 @@ ggsave(base.map, filename = here("Figs/basemap.png"),
 ## Cast summary  
 Summary of underway CTD (UCTD) casts conducted during the `r survey.name` aboard _`r survey.vessel`_. 
 
-```{r UCTDCastSummary, include=TRUE}
+```{r uctd-summary, include=TRUE}
 if (length(uctd.hdr) > 0) {
   # make a copy of uctd.summ
   uctd.table <- uctd.summ %>% 
@@ -454,7 +457,7 @@ if (length(uctd.hdr) > 0) {
 ## Unprocessed UCTD casts  
 List of UCTD casts not yet processed. 
 
-```{r UCTDMissingCasts, include=TRUE}
+```{r uctd-missing, include=TRUE}
 if (nrow(uctd.missing) > 0) {
   # make a copy of uctd.summ
   uctd.tbl.missing <- uctd.missing %>%
@@ -487,7 +490,7 @@ ctd.sf  <- st_as_sf(all.ctd.hdr, coords = c("long","lat"), crs = crs.geog) %>%
     Y = as.data.frame(st_coordinates(.))$Y)  
 ```
 
-```{r all-uctd-map}
+```{r uctd-map-all}
 if (length(uctd.hdr) > 0) {
   if (save.figs) {
     if (length(uctd.table) > 0) {
@@ -525,7 +528,7 @@ mapview(transects, alpha = 0.5, layer.name = "Vessel track") +
 ## Descent rate v. Depth plot
 Descent rate of the UCTD by depth and vessel speed.  
 
-```{r DescentRateDepthPlot,out.width="90%",out.height="90%"}
+```{r uctd-dZt-plot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (save.figs) {
     # plot descent rate v depth
@@ -560,7 +563,7 @@ if (length(uctd.hdr) > 0) {
 ## Depth v. Time plot
 The dashed line represent the Loess-smoothed depth profiles.  
 
-```{r DepthTimePlot,out.width="90%",out.height="90%"}
+```{r uctd-depth-time-plot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (save.figs) {
     # plot depth v time
@@ -596,7 +599,7 @@ if (length(uctd.hdr) > 0) {
 
 ## Temperature v. Depth plot
 
-```{r TemperatureDepthPlot,out.width="90%",out.height="90%"}
+```{r uctd-temp-depth-plot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (save.figs) {
     # plot temperature v depth
@@ -627,7 +630,7 @@ if (length(uctd.hdr) > 0) {
 
 ## Salinity v. Depth plot
 
-```{r SalinityDepthPlot,out.width="90%",out.height="90%"}
+```{r uctd-sal-depth-plot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (save.figs) {
     # plot salinity v depth
@@ -661,7 +664,7 @@ if (length(uctd.hdr) > 0) {
 
 ## Sound speed v. Depth plot
 
-```{r SoundSpeedDepthPlot,out.width="90%",out.height="90%"}
+```{r uctd-sv-depth-plot,out.width="90%",out.height="90%"}
 if (length(uctd.hdr) > 0) {
   if (save.figs) {
     # plot sound speed v depth
@@ -695,7 +698,7 @@ if (length(uctd.hdr) > 0) {
 ## Temperature-Salinity plot
 Temperature-salinity plot for all UCTD casts (left) and the location of UCTD casts (right), symbolized by water mass.
 
-```{r UCTDTsPlot}
+```{r uctd-temp-sal-plot}
 if (length(uctd.hdr) > 0) {
   if (save.figs) {
     # plot salinity v depth
@@ -751,7 +754,7 @@ if (length(uctd.hdr) > 0) {
 ## Cast summary 
 Summary of traditional CTD casts conducted during the `r survey.name` aboard _`r survey.vessel`_. 
 
-```{r CTDCastSummary,include=T}
+```{r ctd-summary,include=T}
 if (length(ctd.hdr) > 0) {
   # make a copy of uctd.summ
   ctd.table <- all.ctd.hdr %>% 
@@ -769,7 +772,7 @@ if (length(ctd.hdr) > 0) {
 ## Cast locations
 Location of underway CTD (red numbers) casts. Gray numbers indicate acoustic transect line numbers from the survey instructions. CTD cast numbers correspond to those in the previous table.  
 
-```{r AllCtdMap}
+```{r ctd-map-all}
 if (save.figs) {
   if (length(ctd.hdr) > 0) {
     map.ctd <- base.map + 
@@ -804,7 +807,7 @@ mapview(transects, alpha = 0.5, layer.name = "Vessel track") +
 ## Unprocessed CTD casts  
 List of CTD casts not yet processed. 
 
-```{r CTDMissingCasts, include=TRUE}
+```{r ctd-missing, include=TRUE}
 if (nrow(ctd.missing) > 0) {
   # make a copy of uctd.summ
   ctd.tbl.missing <- ctd.missing %>%
@@ -819,7 +822,7 @@ if (nrow(ctd.missing) > 0) {
 }
 ```
 
-```{r CombineMaps}
+```{r uctd-ctd-combo-map}
 if (save.figs) {
   # Combine maps
   both.maps <- plot_grid(map.uctd, map.ctd, align = "h", labels = c("UCTD", "CTD"))
@@ -831,7 +834,7 @@ if (save.figs) {
 
 ## Temperature v. Depth plot
 
-```{r CtdTemperatureDepthPlot,out.width="90%",out.height="90%"}
+```{r ctd-temp-depth-plot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
   if (save.figs) {
     # plot temperature v depth
@@ -865,7 +868,7 @@ if (length(ctd.hdr) > 0) {
 
 ## Salinity v. Depth plot
 
-```{r CtdSalinityDepthPlot,out.width="90%",out.height="90%"}
+```{r ctd-sal-depth-plot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
   if (save.figs) {
     # plot salinity v depth
@@ -898,7 +901,7 @@ if (length(ctd.hdr) > 0) {
 
 ## Sound speed v. Depth plot
 
-```{r CtdSoundSpeedDepthPlot,out.width="90%",out.height="90%"}
+```{r ctd-sv-depth-plot,out.width="90%",out.height="90%"}
 if (length(ctd.hdr) > 0) {
   if (save.figs) {
     # plot sound speed v depth
@@ -934,7 +937,7 @@ if (length(ctd.hdr) > 0) {
 ## Temperature-Salinity plot
 Temperature-salinity plot for all CTD casts (left) and the location of CTD casts (right), symbolized by water mass.
 
-```{r CTDTsPlot}
+```{r ctd-temp-sal-plot}
 if (length(ctd.hdr) > 0) {
   if (save.figs) {
     # plot salinity v depth

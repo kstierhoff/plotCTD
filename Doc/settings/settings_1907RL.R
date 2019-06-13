@@ -1,30 +1,32 @@
 
 # Survey info-General -----------------------------------------------------
-survey.name   <- "1807RL"
+survey.name   <- "1907RL"
 survey.vessel <- "FSV Reuben Lasker" 
-survey.dir    <- "C:/SURVEY/1807RL"
-data.dir      <- "C:/SURVEY/1807RL/DATA"
+survey.dir    <- "C:/SURVEY/1907RL"
+data.dir      <- "C:/SURVEY/1907RL/DATA"
 
 # Define Leg breaks; e.g. "YYYY-MM-DD"
-leg.breaks <- as.numeric(lubridate::ymd(c("2018-06-24", "2018-07-20", 
-                                      "2018-08-13", "2018-09-05",
-                                      "2018-09-24")))
+leg.breaks <- as.numeric(lubridate::ymd(c("2019-06-13", "2019-07-06", 
+                                          "2019-07-29", "2019-08-20",
+                                          "2019-09-10")))
 
 # Survey info-ERDDAP -----------------------------------------------------
-survey.vessel.erddap <- "WTEG" # Lasker == WTEG; Shimada == WTED; add "nrt" if using near-realtime data (e.g., WTEGnrt)
-survey.start         <- "2018-06-25" # Start of survey for ERDDAP vessel data query
-survey.end           <- "2018-09-23" # End of survey for ERDDAP vessel data query
-erddap.vars          <- c("time,latitude,longitude,platformSpeed")
-erddap.classes       <- c("factor", "numeric", "numeric", "numeric")
-erddap.headers       <- c("time", "lat", "long", "SOG")
+survey.vessel.erddap <- "WTEGnrt" # Lasker == WTEG; Shimada == WTED; add "nrt" if using near-realtime data (e.g., WTEGnrt)
+survey.start         <- "2019-06-13" # Start of survey for ERDDAP vessel data query
+survey.end           <- "2019-09-10" # End of survey for ERDDAP vessel data query
+erddap.vars          <- c("time,latitude,longitude,seaTemperature,platformSpeed")
+erddap.classes       <- c("factor", "numeric", "numeric", "numeric","numeric")
+erddap.headers       <- c("time", "lat", "long", "SST", "SOG")
+survey.lat           <- c(32,51)
+survey.long          <- c(-130,-117)
 
 # CTD/UCTD file info --------------------------------------------------
 # File naming pattern
-uctd.prefix <- "1807RL_\\d{3}_UCTD\\d{3}"
-ctd.prefix  <- "1807\\d{3}"
+uctd.prefix <- "1907RL_\\d{3}_UCTD\\d{3}"
+ctd.prefix  <- "1907\\d{3}"
 
 # Files to manually exclude
-exclude.ctd <- c("1807RL_056_UCTD131")
+exclude.ctd <- c(NA)
 
 # Plotting preferences -------------------------------------------------------
 # mapview options
